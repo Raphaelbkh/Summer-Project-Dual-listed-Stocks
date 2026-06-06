@@ -27,6 +27,8 @@ def load_config() -> dict:
 
 def print_quote(provider: IBKRFXProvider, pair: str, optional: bool = False) -> None:
     try:
+        contract = provider.qualify_fx_contract(pair)
+        print(f"qualified_contract: {contract}")
         quote = provider.get_fx_quote(pair)
     except Exception as exc:
         if optional:
@@ -42,6 +44,8 @@ def print_quote(provider: IBKRFXProvider, pair: str, optional: bool = False) -> 
     print(f"timestamp: {quote.timestamp.isoformat()}")
     print(f"is_valid: {quote.is_valid}")
     print(f"spread_pct: {quote.spread_pct}")
+    if quote.bid is None or quote.ask is None or quote.bid <= 0 or quote.ask <= 0:
+        print("warning: missing or non-positive IBKR FX bid/ask")
 
 
 def main() -> None:
@@ -58,6 +62,8 @@ def main() -> None:
 
     try:
         provider.connect()
+        provider.ib.errorEvent += lambda *args: print(f"ibkr_error: {args}")
+        provider.ib.reqMarketDataType(1)
         for pair in fx_config["required_pairs"]:
             print_quote(provider, pair)
         for pair in fx_config.get("optional_pairs", []):
