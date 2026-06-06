@@ -10,6 +10,10 @@ The user-selected universe remains the default workflow. The system should
 continue to start from tickers supplied by the user and should process only rows
 that the user has manually approved.
 
+ProRealTime can be used as the preferred paper-launch environment through a
+DDE/CSV quote bridge. That bridge is a market data input only; it does not
+enable orders or automatic pair activation.
+
 Optional future research screening may suggest candidate tickers, but suggested
 candidates must never be auto-activated. Any future candidate must be manually
 reviewed before `active=true` is set.

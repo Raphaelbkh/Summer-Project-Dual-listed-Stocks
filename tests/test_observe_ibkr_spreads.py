@@ -10,6 +10,10 @@ from src.utils.time_utils import utc_now
 
 def config_dict() -> dict:
     return {
+        "market_data": {
+            "live_provider": "PROREALTIME_DDE_CSV",
+            "prorealtime_quotes_path": "data/prorealtime/live_quotes.csv",
+        },
         "execution": {
             "observe_only": True,
             "default_cost_buffer_bps": 20,
@@ -191,3 +195,12 @@ def test_max_iterations_stops(monkeypatch, tmp_path: Path) -> None:
     )
 
     assert calls == ["called", "called"]
+
+
+def test_build_quote_providers_uses_prorealtime_csv(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(observer, "PROJECT_ROOT", tmp_path)
+
+    equity_provider, fx_provider = observer.build_quote_providers(config_dict())
+
+    assert equity_provider is fx_provider
+    assert equity_provider.quotes_path == tmp_path / "data/prorealtime/live_quotes.csv"

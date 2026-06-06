@@ -8,6 +8,11 @@ ibkr:
   client_id_fx: 2
   mode: "paper"
 
+market_data:
+  live_provider: "PROREALTIME_DDE_CSV"
+  prorealtime_quotes_path: "data/prorealtime/live_quotes.csv"
+  max_quote_age_seconds: 5
+
 market_universe:
   included_countries: ["Sweden", "Finland", "Denmark"]
   excluded_countries: ["Norway"]
@@ -28,7 +33,7 @@ universe_selection:
   require_manual_active_true: true
 
 fx:
-  live_provider: "IBKR_IDEALPRO"
+  live_provider: "PROREALTIME_DDE_CSV"
   required_pairs: ["EURSEK", "EURDKK"]
   optional_pairs: ["DKKSEK"]
   max_quote_age_seconds: 5

@@ -2,7 +2,7 @@
 
 Observe-only monitor for user-selected dual-listed or triple-listed Nordic
 equities. The MVP watches manually approved pairs, fetches executable bid/ask
-quotes from IBKR, calculates spread snapshots, and logs observations to CSV.
+quotes, calculates spread snapshots, and logs observations to CSV.
 
 ## MVP Scope
 
@@ -23,10 +23,24 @@ Excluded from the MVP:
 
 ## Data Sources
 
-- IBKR Nordic Equity L1 is the live equity quote source.
-- IBKR IDEALPRO is the live FX quote source.
+- ProRealTime DDE/CSV is now the preferred paper-launch quote bridge.
+- ProRealTime exports live quotes through DDE into external software such as
+  Excel or LibreOffice; this project reads those exported rows from
+  `data/prorealtime/live_quotes.csv`.
+- IBKR providers remain in the codebase as an optional fallback.
+- IBKR Nordic Equity L1 can be used as a live equity quote source.
+- IBKR IDEALPRO can be used as a live FX quote source.
 - Börsdata (Borsdata) is for historical research, EOD data, fundamentals, and earnings.
 - Börsdata is not a live signal source.
+
+Expected ProRealTime bridge CSV columns:
+
+```csv
+kind,symbol,exchange,currency,pair,bid,ask,bid_size,ask_size,last,timestamp
+```
+
+Equity rows use `kind=equity` plus `symbol`, `exchange`, and `currency`. FX
+rows use `kind=fx` plus `pair`, for example `EURSEK`.
 
 ## Watchlist Workflow
 
@@ -52,10 +66,20 @@ auto-activate pairs. The user manually reviews `resolved_pairs.csv` and manually
 sets `active=true` for approved rows. The observe script processes only rows
 where `active=true`.
 
+## ProRealTime Setup
+
+ProRealTime must be open with the relevant instruments displayed in lists. Use
+the ProRealTime DDE data export window to export bid/ask, last, and related
+fields into a spreadsheet or local bridge that updates
+`data/prorealtime/live_quotes.csv`.
+
+The project does not place ProRealTime orders and does not automate ProOrder in
+the MVP.
+
 ## IBKR Setup
 
 TWS or IB Gateway must be running, and the IBKR API must be enabled. The default
-configuration uses paper mode with TWS paper port `7497`.
+IBKR fallback configuration uses paper mode with TWS paper port `7497`.
 
 Live trading is not enabled in this MVP.
 

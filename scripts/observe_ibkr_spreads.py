@@ -18,6 +18,7 @@ from src.data.live.ibkr_market_data import (  # noqa: E402
     load_ibkr_connection_config,
     resolve_ibkr_port,
 )
+from src.data.live.prorealtime_market_data import ProRealTimeCSVQuoteProvider  # noqa: E402
 from src.data.live.quote_models import FXQuote, SpreadSnapshot  # noqa: E402
 from src.data.mappings.listing_master import get_active_pairs, validate_resolved_pairs  # noqa: E402
 from src.fx.ibkr_fx import IBKRFXProvider  # noqa: E402
@@ -190,18 +191,15 @@ def run_observer_loop(
         time.sleep(interval_seconds)
 
 
-def main() -> None:
-    config_dict = load_config()
-    validate_observer_safety_config(config_dict)
+def build_quote_providers(config_dict: dict):
+    live_provider = config_dict.get("market_data", {}).get("live_provider", "IBKR")
+    if live_provider == "PROREALTIME_DDE_CSV":
+        quotes_path = PROJECT_ROOT / config_dict["market_data"]["prorealtime_quotes_path"]
+        provider = ProRealTimeCSVQuoteProvider(quotes_path)
+        return provider, provider
+
     connection_config = load_ibkr_connection_config(config_dict)
     port = resolve_ibkr_port(connection_config)
-    active_pairs = load_active_pair_rows(config_dict)
-    if active_pairs.empty:
-        print("No active pairs found. Manually set active=true before running.")
-        return
-
-    quote_output_dir = PROJECT_ROOT / config_dict["logging"]["live_quotes_dir"]
-    spread_output_dir = PROJECT_ROOT / config_dict["logging"]["live_spreads_dir"]
     equity_provider = IBKREquityMarketDataProvider(
         host=connection_config.host,
         port=port,
@@ -212,6 +210,20 @@ def main() -> None:
         port=port,
         client_id=int(config_dict["ibkr"]["client_id_fx"]),
     )
+    return equity_provider, fx_provider
+
+
+def main() -> None:
+    config_dict = load_config()
+    validate_observer_safety_config(config_dict)
+    active_pairs = load_active_pair_rows(config_dict)
+    if active_pairs.empty:
+        print("No active pairs found. Manually set active=true before running.")
+        return
+
+    quote_output_dir = PROJECT_ROOT / config_dict["logging"]["live_quotes_dir"]
+    spread_output_dir = PROJECT_ROOT / config_dict["logging"]["live_spreads_dir"]
+    equity_provider, fx_provider = build_quote_providers(config_dict)
 
     try:
         equity_provider.connect()
