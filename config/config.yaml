@@ -1,0 +1,49 @@
+ibkr:
+  host: "127.0.0.1"
+  paper_port: 7497
+  live_port: 7496
+  gateway_paper_port: 4002
+  gateway_live_port: 4001
+  client_id_market_data: 1
+  client_id_fx: 2
+  mode: "paper"
+
+market_universe:
+  included_countries: ["Sweden", "Finland", "Denmark"]
+  excluded_countries: ["Norway"]
+  included_currencies: ["SEK", "EUR", "DKK"]
+  excluded_currencies: ["NOK"]
+
+universe_selection:
+  mode: "ticker_watchlist_resolved_mapping"
+  user_watchlist_path: "data/mappings/user_watchlist.csv"
+  resolved_listings_path: "data/mappings/resolved_listings.csv"
+  resolved_pairs_path: "data/mappings/resolved_pairs.csv"
+  live_test_pairs_path: "data/mappings/ibkr_live_test_pairs.csv"
+  rejected_watchlist_path: "data/mappings/rejected_watchlist_rows.csv"
+  allow_auto_discovery: false
+  allow_auto_screening: false
+  allow_ai_generated_tickers: false
+  allow_auto_activation: false
+  require_manual_active_true: true
+
+fx:
+  live_provider: "IBKR_IDEALPRO"
+  required_pairs: ["EURSEK", "EURDKK"]
+  optional_pairs: ["DKKSEK"]
+  max_quote_age_seconds: 5
+
+execution:
+  observe_only: true
+  min_required_net_edge_bps: 30
+  default_cost_buffer_bps: 20
+  reject_if_missing_bid_ask: true
+  reject_if_fx_stale: true
+  reject_if_equity_quote_stale: true
+
+logging:
+  live_quotes_dir: "data/live_quotes"
+  live_spreads_dir: "data/live_spreads"
+
+polling:
+  interval_seconds: 5
