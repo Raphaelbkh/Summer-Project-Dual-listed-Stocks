@@ -79,7 +79,7 @@ class IBKREquityMarketDataProvider:
 
     def connect(self) -> None:
         """Connect the injected IB client to TWS or IB Gateway."""
-        self.ib.connect(self.host, self.port, clientId=self.client_id)
+        self.ib.connect(self.host, self.port, clientId=self.client_id, readonly=True)
 
     def disconnect(self) -> None:
         """Disconnect the injected IB client."""
@@ -114,7 +114,7 @@ class IBKREquityMarketDataProvider:
             snapshot=True,
             regulatorySnapshot=False,
         )
-        self.ib.sleep(1)
+        self._wait_for_bid_ask(ticker)
 
         return EquityQuote(
             symbol=symbol,
@@ -128,6 +128,18 @@ class IBKREquityMarketDataProvider:
             timestamp=_ticker_timestamp(ticker),
             contract_id=getattr(contract, "conId", None),
         )
+
+    def _wait_for_bid_ask(self, ticker: Any, timeout_seconds: float = 5.0) -> None:
+        """Wait briefly for IBKR snapshot fields to populate."""
+        elapsed = 0.0
+        step = 0.25
+        while elapsed < timeout_seconds:
+            if _optional_float(getattr(ticker, "bid", None)) is not None and _optional_float(
+                getattr(ticker, "ask", None)
+            ) is not None:
+                return
+            self.ib.sleep(step)
+            elapsed += step
 
 
 def _optional_float(value: Any) -> float | None:

@@ -35,7 +35,7 @@ class FakeIBClient:
             if qualified_contracts is not None
             else [FakeFXContract("EURSEK")]
         )
-        self.connect_calls: list[tuple[str, int, int]] = []
+        self.connect_calls: list[dict] = []
         self.disconnect_calls = 0
         self.qualified_requests = []
         self.market_data_requests = []
@@ -43,9 +43,11 @@ class FakeIBClient:
         self.external_fx_calls = 0
         self.order_calls = 0
 
-    def connect(self, host: str, port: int, clientId: int) -> None:
+    def connect(self, host: str, port: int, clientId: int, readonly: bool = False) -> None:
         self.connected = True
-        self.connect_calls.append((host, port, clientId))
+        self.connect_calls.append(
+            {"host": host, "port": port, "clientId": clientId, "readonly": readonly}
+        )
 
     def disconnect(self) -> None:
         self.connected = False
@@ -111,7 +113,9 @@ def test_fake_connection_works() -> None:
     provider.connect()
 
     assert provider.is_connected() is True
-    assert fake_ib.connect_calls == [("127.0.0.1", 7497, 2)]
+    assert fake_ib.connect_calls == [
+        {"host": "127.0.0.1", "port": 7497, "clientId": 2, "readonly": True}
+    ]
 
 
 def test_fake_disconnect_works() -> None:
