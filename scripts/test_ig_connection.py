@@ -5,6 +5,7 @@ import os
 import sys
 
 import yaml
+import requests
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -43,8 +44,14 @@ def main() -> None:
     config_dict = load_config()
     credentials = load_ig_credentials_from_env(config_dict)
     client = IGAPIClient(ig_base_url(config_dict), credentials)
-    session = client.login()
-    accounts = client.get_accounts()
+    try:
+        session = client.login()
+        accounts = client.get_accounts()
+    except requests.HTTPError as exc:
+        print("connected: False")
+        print(f"environment: {config_dict['ig']['environment']}")
+        print(f"error: {exc}")
+        raise SystemExit(1) from exc
 
     print(f"environment: {config_dict['ig']['environment']}")
     print(f"current_account_id: {session.get('currentAccountId')}")

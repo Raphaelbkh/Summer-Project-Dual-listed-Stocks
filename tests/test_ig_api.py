@@ -4,6 +4,8 @@ from src.data.live.ig_api import (
     ig_base_url,
     load_ig_credentials_from_env,
 )
+import requests
+import pytest
 
 
 class FakeResponse:
@@ -14,7 +16,7 @@ class FakeResponse:
 
     def raise_for_status(self) -> None:
         if self.status_code >= 400:
-            raise RuntimeError("HTTP error")
+            raise requests.HTTPError("HTTP error", response=self)
 
     def json(self):
         return self.body
@@ -99,3 +101,18 @@ def test_ig_base_url_uses_demo_by_default() -> None:
     }
 
     assert ig_base_url(config) == "https://demo-api.ig.com/gateway/deal"
+
+
+def test_ig_http_error_includes_response_body() -> None:
+    class ErrorSession:
+        def post(self, url, headers, json, timeout):
+            return FakeResponse({"errorCode": "error.security.invalid-details"}, status_code=403)
+
+    client = IGAPIClient(
+        "https://demo-api.ig.com/gateway/deal",
+        IGCredentials("key", "user", "pass"),
+        session=ErrorSession(),
+    )
+
+    with pytest.raises(requests.HTTPError, match="error.security.invalid-details"):
+        client.login()

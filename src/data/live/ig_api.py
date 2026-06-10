@@ -45,7 +45,7 @@ class IGAPIClient:
             },
             timeout=15,
         )
-        response.raise_for_status()
+        _raise_for_ig_error(response)
         self.cst = response.headers.get("CST")
         self.security_token = response.headers.get("X-SECURITY-TOKEN")
         return response.json()
@@ -68,8 +68,23 @@ class IGAPIClient:
             headers=self.authenticated_headers(),
             timeout=15,
         )
-        response.raise_for_status()
+        _raise_for_ig_error(response)
         return response.json()
+
+
+def _raise_for_ig_error(response: requests.Response) -> None:
+    """Raise an HTTP error that includes IG's JSON errorCode when available."""
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as exc:
+        try:
+            body = response.json()
+        except ValueError:
+            body = response.text
+        raise requests.HTTPError(
+            f"{exc}; IG response body: {body}",
+            response=response,
+        ) from exc
 
 
 def load_ig_credentials_from_env(config_dict: dict) -> IGCredentials:
