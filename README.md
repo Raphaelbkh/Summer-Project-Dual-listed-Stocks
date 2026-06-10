@@ -100,6 +100,12 @@ Then test demo API login:
 python scripts/test_ig_connection.py
 ```
 
+Search IG demo markets and inspect available epics:
+
+```powershell
+python scripts/test_ig_market_search.py AAPL EUR/USD
+```
+
 ## IBKR Setup
 
 TWS or IB Gateway must be running, and the IBKR API must be enabled. The default
@@ -114,6 +120,8 @@ python scripts/resolve_watchlist.py
 python scripts/test_ibkr_connection.py
 python scripts/test_ibkr_fx.py
 python scripts/test_ibkr_equity_quote.py
+python scripts/test_ig_connection.py
+python scripts/test_ig_market_search.py AAPL EUR/USD
 python scripts/observe_ibkr_spreads.py
 ```
 
@@ -123,7 +131,7 @@ Live spread calculation uses tradable prices:
 
 - Buy leg uses ask.
 - Sell leg uses bid.
-- FX conversion uses IBKR IDEALPRO bid/ask.
+- FX conversion uses the configured live FX provider bid/ask.
 - Cost buffer is deducted from gross edge.
 - Last and mid are diagnostics only, never live signal inputs.
 
