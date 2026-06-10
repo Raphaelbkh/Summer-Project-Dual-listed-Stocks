@@ -255,6 +255,58 @@ class IGMarketDataProvider:
         )
 
 
+class IGPricesQuoteProvider:
+    """Observe-only quote provider backed by IG prices endpoint."""
+
+    def __init__(
+        self,
+        client: IGAPIClient,
+        account_id: str | None = None,
+        fx_epics: dict[str, str] | None = None,
+    ) -> None:
+        self.client = client
+        self.account_id = account_id
+        self.fx_epics = {key.upper(): value for key, value in (fx_epics or {}).items()}
+        self.connected = False
+
+    def connect(self) -> None:
+        """Login to IG without performing any trading action."""
+        self.client.login()
+        if self.account_id:
+            self.client.switch_account(self.account_id)
+        self.connected = True
+
+    def disconnect(self) -> None:
+        """Mark provider disconnected; IG REST sessions expire server-side."""
+        self.connected = False
+
+    def is_connected(self) -> bool:
+        return self.connected
+
+    def get_equity_quote(
+        self,
+        symbol: str,
+        exchange: str,
+        currency: str,
+    ) -> EquityQuote:
+        """Fetch an equity quote where symbol is an IG epic or exchange carries one."""
+        epic = _resolve_ig_epic(symbol, exchange)
+        provider = IGMarketDataProvider(self.client)
+        return provider.get_equity_quote_from_prices(
+            epic=epic,
+            symbol=symbol,
+            exchange=exchange,
+            currency=currency,
+        )
+
+    def get_fx_quote(self, pair: str) -> FXQuote:
+        """Fetch an FX quote using configured IG FX epic mapping."""
+        normalized_pair = pair.replace("/", "").upper()
+        epic = self.fx_epics.get(normalized_pair, normalized_pair)
+        provider = IGMarketDataProvider(self.client)
+        return provider.get_fx_quote_from_prices(epic=epic, pair=normalized_pair)
+
+
 def _raise_for_ig_error(response: requests.Response) -> None:
     """Raise an HTTP error that includes IG's JSON errorCode when available."""
     try:
@@ -388,3 +440,12 @@ def _to_optional_float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _resolve_ig_epic(symbol: str, exchange: str) -> str:
+    if str(symbol).count(".") >= 3:
+        return str(symbol)
+    exchange_text = str(exchange)
+    if exchange_text.upper().startswith("IG:"):
+        return exchange_text.split(":", 1)[1].strip()
+    return str(symbol)

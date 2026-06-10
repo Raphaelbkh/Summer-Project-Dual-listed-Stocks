@@ -2,6 +2,7 @@ from src.data.live.ig_api import (
     IGAPIClient,
     IGCredentials,
     IGMarketDataProvider,
+    IGPricesQuoteProvider,
     ig_base_url,
     ig_base_url_for_profile,
     load_ig_credentials_for_profile_from_env,
@@ -293,6 +294,39 @@ def test_ig_market_data_provider_maps_fx_quote_from_prices() -> None:
     assert quote.bid == 307.5
     assert quote.ask == 308.5
     assert quote.source == "IG_API_PRICES"
+
+
+def test_ig_prices_quote_provider_connects_and_maps_quotes() -> None:
+    session = FakeSession()
+    client = IGAPIClient(
+        "https://api.ig.com/gateway/deal",
+        IGCredentials("key", "user", "pass"),
+        session=session,
+    )
+    provider = IGPricesQuoteProvider(
+        client=client,
+        account_id="LIVE123",
+        fx_epics={"EURSEK": "CS.D.EURSEK.CFD.IP"},
+    )
+
+    provider.connect()
+    equity_quote = provider.get_equity_quote(
+        "UD.D.TSLA.CASH.IP",
+        "IG",
+        "USD",
+    )
+    fx_quote = provider.get_fx_quote("EURSEK")
+
+    assert provider.is_connected() is True
+    assert session.posts
+    assert session.puts[0]["json"]["accountId"] == "LIVE123"
+    assert equity_quote.bid == 307.5
+    assert equity_quote.ask == 308.5
+    assert fx_quote.bid == 307.5
+    assert fx_quote.ask == 308.5
+
+    provider.disconnect()
+    assert provider.is_connected() is False
 
 
 def test_load_ig_credentials_from_env(monkeypatch) -> None:

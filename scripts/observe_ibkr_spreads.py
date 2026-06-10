@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import Callable
+import os
 import sys
 import time
 
@@ -18,6 +19,13 @@ from src.data.live.ibkr_market_data import (  # noqa: E402
     load_ibkr_connection_config,
     resolve_ibkr_port,
 )
+from src.data.live.ig_api import (  # noqa: E402
+    IGAPIClient,
+    IGPricesQuoteProvider,
+    ig_base_url_for_profile,
+    load_ig_credentials_for_profile_from_env,
+    load_ig_session_settings_for_profile_from_env,
+)
 from src.data.live.prorealtime_market_data import ProRealTimeCSVQuoteProvider  # noqa: E402
 from src.data.live.quote_models import FXQuote, SpreadSnapshot  # noqa: E402
 from src.data.mappings.listing_master import get_active_pairs, validate_resolved_pairs  # noqa: E402
@@ -31,11 +39,23 @@ from src.signal.executable_spread import calculate_executable_spread  # noqa: E4
 
 
 CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
+ENV_PATH = PROJECT_ROOT / ".env"
 
 
 def load_config() -> dict:
     with CONFIG_PATH.open("r", encoding="utf-8") as config_file:
         return yaml.safe_load(config_file)
+
+
+def load_dotenv_if_present() -> None:
+    if not ENV_PATH.exists():
+        return
+    for line in ENV_PATH.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        os.environ[key.strip()] = value.strip().strip('"').strip("'")
 
 
 def validate_observer_safety_config(config_dict: dict) -> None:
@@ -193,6 +213,20 @@ def run_observer_loop(
 
 def build_quote_providers(config_dict: dict):
     live_provider = config_dict.get("market_data", {}).get("live_provider", "IBKR")
+    if live_provider == "IG_LIVE_API":
+        credentials = load_ig_credentials_for_profile_from_env(config_dict, "ig_live_data")
+        session_settings = load_ig_session_settings_for_profile_from_env(
+            config_dict,
+            "ig_live_data",
+        )
+        client = IGAPIClient(ig_base_url_for_profile(config_dict, "ig_live_data"), credentials)
+        provider = IGPricesQuoteProvider(
+            client=client,
+            account_id=session_settings.account_id,
+            fx_epics=config_dict["ig_live_data"].get("fx_epics", {}),
+        )
+        return provider, provider
+
     if live_provider == "PROREALTIME_DDE_CSV":
         quotes_path = PROJECT_ROOT / config_dict["market_data"]["prorealtime_quotes_path"]
         provider = ProRealTimeCSVQuoteProvider(quotes_path)
@@ -214,6 +248,7 @@ def build_quote_providers(config_dict: dict):
 
 
 def main() -> None:
+    load_dotenv_if_present()
     config_dict = load_config()
     validate_observer_safety_config(config_dict)
     active_pairs = load_active_pair_rows(config_dict)

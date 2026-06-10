@@ -16,39 +16,32 @@ Excluded from the MVP:
 
 - Norway
 - NOK
-- Oslo / Oslo Børs / Euronext Oslo
+- Oslo / Oslo Bors / Euronext Oslo
 - TradingView as a backend
 - Nordnet as the primary live source
 - Nasdaq direct feed
 
+## Target Architecture
+
+The intended architecture is split by account/environment:
+
+- IG live Web API: live market data only.
+- IG demo Web API: future demo/paper execution only.
+- ProRealTime: visual review of trades, P&L, and equity curve.
+- Live order placement is not implemented.
+
+The system should not use ProRealTime as the primary quote backend when IG live
+Web API credentials and live market data permissions are available.
+
 ## Data Sources
 
-- ProRealTime DDE/CSV is the preferred live market data bridge.
-- ProRealTime exports live quotes through DDE into external software such as
-  Excel or LibreOffice; this project reads those exported rows from
-  `data/prorealtime/live_quotes.csv`.
+- IG live Web API is the intended live market data source.
 - IG demo Web API is reserved for demo/paper connectivity and future paper
-  execution experiments.
-- The live IG account does not need Web API credentials for the current MVP.
+  execution.
+- ProRealTime is for monitoring and visual review, not primary backend data.
 - IBKR providers remain in the codebase as an optional fallback.
-- IBKR Nordic Equity L1 can be used as a live equity quote source.
-- IBKR IDEALPRO can be used as a live FX quote source.
-- Börsdata (Borsdata) is for historical research, EOD data, fundamentals, and earnings.
-- Börsdata is not a live signal source.
-
-Expected ProRealTime bridge CSV columns:
-
-```csv
-kind,symbol,exchange,currency,pair,bid,ask,bid_size,ask_size,last,timestamp
-```
-
-Equity rows use `kind=equity` plus `symbol`, `exchange`, and `currency`. FX
-rows use `kind=fx` plus `pair`, for example `EURSEK`.
-
-The user should not type quote rows by hand. The user only fills tickers in
-`data/mappings/user_watchlist.csv`; the project generates
-`data/prorealtime/watchlist_import.csv`, and the local ProRealTime bridge/export
-uses that list to update `data/prorealtime/live_quotes.csv` automatically.
+- Borsdata is for historical research, EOD data, fundamentals, and earnings.
+- Borsdata is not a live signal source.
 
 ## Watchlist Workflow
 
@@ -61,7 +54,6 @@ data/mappings/user_watchlist.csv
 Then run:
 
 ```powershell
-python scripts/build_prorealtime_watchlist.py
 python scripts/resolve_watchlist.py
 ```
 
@@ -75,54 +67,43 @@ auto-activate pairs. The user manually reviews `resolved_pairs.csv` and manually
 sets `active=true` for approved rows. The observe script processes only rows
 where `active=true`.
 
-## ProRealTime Setup
+## IG API Setup
 
-ProRealTime must be open with the relevant instruments displayed in lists. Build
-the ProRealTime bridge input from the user watchlist:
-
-```powershell
-python scripts/build_prorealtime_watchlist.py
-```
-
-Use the generated `data/prorealtime/watchlist_import.csv` as the source list for
-the local DDE/CSV bridge. The bridge/export should update bid/ask, last, and
-related fields into `data/prorealtime/live_quotes.csv`.
-
-The project does not place ProRealTime orders and does not automate ProOrder in
-the MVP.
-
-Test the local ProRealTime quote bridge:
-
-```powershell
-python scripts/test_prorealtime_quotes.py
-python scripts/test_prorealtime_quotes.py --symbol NOKI --exchange "NASDAQ STOCKHOLM" --currency SEK
-python scripts/test_prorealtime_quotes.py --fx-pair EURSEK
-```
-
-## IG Demo API Setup
-
-Create a local `.env` file from `.env.example` and fill in the demo Web API
-credentials if you want to test IG demo API connectivity. Do not commit `.env`.
+Create a local `.env` file from `.env.example`. Fill live credentials for market
+data and demo credentials for paper/demo execution tests. Do not commit `.env`.
 
 ```powershell
 copy .env.example .env
 ```
 
-Required values:
+Required values for live market data:
+
+```text
+IG_LIVE_API_KEY=...
+IG_LIVE_USERNAME=...
+IG_LIVE_PASSWORD=...
+IG_LIVE_ACCOUNT_ID=...
+```
+
+Required values for demo API connectivity:
+
+```text
+IG_DEMO_API_KEY=...
+IG_DEMO_USERNAME=...
+IG_DEMO_PASSWORD=...
+IG_DEMO_ACCOUNT_ID=...
+```
+
+Legacy demo variables are still supported by older scripts:
 
 ```text
 IG_API_KEY=...
 IG_USERNAME=...
 IG_PASSWORD=...
-IG_ACCOUNT_ID=...   # optional; use when selecting a specific CFD account
-
-IG_DEMO_API_KEY=...
-IG_DEMO_USERNAME=...
-IG_DEMO_PASSWORD=...
-IG_DEMO_ACCOUNT_ID=...   # optional demo/paper account
+IG_ACCOUNT_ID=...
 ```
 
-Then test demo API login:
+Test demo API login:
 
 ```powershell
 python scripts/test_ig_connection.py
@@ -134,44 +115,57 @@ Search IG demo markets and inspect available epics:
 python scripts/test_ig_market_search.py AAPL EUR/USD
 ```
 
-Test IG's prices endpoint for known epics:
+Test IG demo prices endpoint for known epics:
 
 ```powershell
 python scripts/test_ig_prices.py CS.D.EURUSD.CEE.IP
 python scripts/test_ig_prices.py UD.D.TSLA.CASH.IP
 ```
 
+Test live-account market data only:
+
+```powershell
+python scripts/test_ig_live_prices.py UD.D.TSLA.CASH.IP
+```
+
 If equity epics return `unauthorised.access.to.equity.exception`, the API login
-works but that IG Web API account/environment is not entitled to equity price
-data. The MVP does not require live IG Web API access because live quotes come
-from ProRealTime DDE/CSV.
+works but that IG account/environment is not entitled to equity price data.
+Check that real-time exchange data is active for the same live account used by
+the Web API.
 
-The intended next-phase architecture is split by environment:
+## ProRealTime Setup
 
-- ProRealTime/IG live account: market data only through local DDE/CSV export.
-- IG demo API: future paper execution only, disabled in the current codebase.
-- Live order placement is not implemented.
+ProRealTime can be used to review results, trades, P&L, and equity curve. It is
+not the primary source for automated live quotes in the intended architecture.
+The project does not place ProRealTime orders and does not automate ProOrder in
+the MVP.
 
 ## IBKR Setup
 
-TWS or IB Gateway must be running, and the IBKR API must be enabled. The default
-IBKR fallback configuration uses paper mode with TWS paper port `7497`.
+TWS or IB Gateway must be running, and the IBKR API must be enabled if using the
+optional IBKR fallback. The default IBKR fallback configuration uses paper mode
+with TWS paper port `7497`.
 
 Live trading is not enabled in this MVP.
 
 ## Commands
 
 ```powershell
-python scripts/build_prorealtime_watchlist.py
 python scripts/resolve_watchlist.py
-python scripts/test_ibkr_connection.py
-python scripts/test_ibkr_fx.py
-python scripts/test_ibkr_equity_quote.py
 python scripts/test_ig_connection.py
 python scripts/test_ig_market_search.py AAPL EUR/USD
 python scripts/test_ig_prices.py CS.D.EURUSD.CEE.IP
-python scripts/test_prorealtime_quotes.py
+python scripts/test_ig_live_prices.py UD.D.TSLA.CASH.IP
 python scripts/observe_ibkr_spreads.py
+```
+
+Optional legacy/fallback diagnostics:
+
+```powershell
+python scripts/test_ibkr_connection.py
+python scripts/test_ibkr_fx.py
+python scripts/test_ibkr_equity_quote.py
+python scripts/test_prorealtime_quotes.py
 ```
 
 ## Executable Spread Logic
@@ -180,12 +174,12 @@ Live spread calculation uses tradable prices:
 
 - Buy leg uses ask.
 - Sell leg uses bid.
-- FX conversion uses the configured live FX provider bid/ask.
+- FX conversion uses bid/ask.
 - Cost buffer is deducted from gross edge.
 - Last and mid are diagnostics only, never live signal inputs.
 
 ## Safety
 
-No orders are placed in the MVP. All signals are observations. Live trading
-requires a separate phase with paper trading, risk controls, reconciliation, and
-a kill switch.
+No orders are placed in the MVP. All signals are observations. Demo execution is
+a future phase and must use IG demo API only. Live trading requires a separate
+phase with paper trading, risk controls, reconciliation, and a kill switch.

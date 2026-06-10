@@ -9,8 +9,7 @@ ibkr:
   mode: "paper"
 
 market_data:
-  live_provider: "PROREALTIME_DDE_CSV"
-  prorealtime_watchlist_path: "data/prorealtime/watchlist_import.csv"
+  live_provider: "IG_LIVE_API"
   prorealtime_quotes_path: "data/prorealtime/live_quotes.csv"
   max_quote_age_seconds: 5
 
@@ -22,6 +21,21 @@ ig:
   username_env: "IG_USERNAME"
   password_env: "IG_PASSWORD"
   account_id_env: "IG_ACCOUNT_ID"
+
+ig_live_data:
+  environment: "live"
+  purpose: "market_data_only"
+  observe_only: true
+  demo_base_url: "https://demo-api.ig.com/gateway/deal"
+  live_base_url: "https://api.ig.com/gateway/deal"
+  api_key_env: "IG_LIVE_API_KEY"
+  username_env: "IG_LIVE_USERNAME"
+  password_env: "IG_LIVE_PASSWORD"
+  account_id_env: "IG_LIVE_ACCOUNT_ID"
+  fx_epics:
+    EURSEK: "CS.D.EURSEK.CFD.IP"
+    EURDKK: "CS.D.EURDKK.CFD.IP"
+    DKKSEK: "CS.D.DKKSEK.CFD.IP"
 
 ig_demo_execution:
   environment: "demo"
@@ -54,7 +68,7 @@ universe_selection:
   require_manual_active_true: true
 
 fx:
-  live_provider: "PROREALTIME_DDE_CSV"
+  live_provider: "IG_LIVE_API"
   required_pairs: ["EURSEK", "EURDKK"]
   optional_pairs: ["DKKSEK"]
   max_quote_age_seconds: 5

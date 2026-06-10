@@ -204,3 +204,29 @@ def test_build_quote_providers_uses_prorealtime_csv(tmp_path: Path, monkeypatch)
 
     assert equity_provider is fx_provider
     assert equity_provider.quotes_path == tmp_path / "data/prorealtime/live_quotes.csv"
+
+
+def test_build_quote_providers_uses_ig_live_api(monkeypatch) -> None:
+    config = config_dict()
+    config["market_data"]["live_provider"] = "IG_LIVE_API"
+    config["ig_live_data"] = {
+        "environment": "live",
+        "purpose": "market_data_only",
+        "observe_only": True,
+        "demo_base_url": "https://demo-api.ig.com/gateway/deal",
+        "live_base_url": "https://api.ig.com/gateway/deal",
+        "api_key_env": "IG_LIVE_API_KEY",
+        "username_env": "IG_LIVE_USERNAME",
+        "password_env": "IG_LIVE_PASSWORD",
+        "account_id_env": "IG_LIVE_ACCOUNT_ID",
+        "fx_epics": {"EURSEK": "CS.D.EURSEK.CFD.IP"},
+    }
+    monkeypatch.setenv("IG_LIVE_API_KEY", "key")
+    monkeypatch.setenv("IG_LIVE_USERNAME", "user")
+    monkeypatch.setenv("IG_LIVE_PASSWORD", "pass")
+    monkeypatch.setenv("IG_LIVE_ACCOUNT_ID", "LIVE123")
+
+    equity_provider, fx_provider = observer.build_quote_providers(config)
+
+    assert equity_provider is fx_provider
+    assert equity_provider.account_id == "LIVE123"
