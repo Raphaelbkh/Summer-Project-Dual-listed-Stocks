@@ -45,6 +45,11 @@ kind,symbol,exchange,currency,pair,bid,ask,bid_size,ask_size,last,timestamp
 Equity rows use `kind=equity` plus `symbol`, `exchange`, and `currency`. FX
 rows use `kind=fx` plus `pair`, for example `EURSEK`.
 
+The user should not type quote rows by hand. The user only fills tickers in
+`data/mappings/user_watchlist.csv`; the project generates
+`data/prorealtime/watchlist_import.csv`, and the local ProRealTime bridge/export
+uses that list to update `data/prorealtime/live_quotes.csv` automatically.
+
 ## Watchlist Workflow
 
 The user only fills ticker values in:
@@ -56,6 +61,7 @@ data/mappings/user_watchlist.csv
 Then run:
 
 ```powershell
+python scripts/build_prorealtime_watchlist.py
 python scripts/resolve_watchlist.py
 ```
 
@@ -71,10 +77,16 @@ where `active=true`.
 
 ## ProRealTime Setup
 
-ProRealTime must be open with the relevant instruments displayed in lists. Use
-the ProRealTime DDE data export window to export bid/ask, last, and related
-fields into a spreadsheet or local bridge that updates
-`data/prorealtime/live_quotes.csv`.
+ProRealTime must be open with the relevant instruments displayed in lists. Build
+the ProRealTime bridge input from the user watchlist:
+
+```powershell
+python scripts/build_prorealtime_watchlist.py
+```
+
+Use the generated `data/prorealtime/watchlist_import.csv` as the source list for
+the local DDE/CSV bridge. The bridge/export should update bid/ask, last, and
+related fields into `data/prorealtime/live_quotes.csv`.
 
 The project does not place ProRealTime orders and does not automate ProOrder in
 the MVP.
@@ -150,6 +162,7 @@ Live trading is not enabled in this MVP.
 ## Commands
 
 ```powershell
+python scripts/build_prorealtime_watchlist.py
 python scripts/resolve_watchlist.py
 python scripts/test_ibkr_connection.py
 python scripts/test_ibkr_fx.py

@@ -10,6 +10,7 @@ ibkr:
 
 market_data:
   live_provider: "PROREALTIME_DDE_CSV"
+  prorealtime_watchlist_path: "data/prorealtime/watchlist_import.csv"
   prorealtime_quotes_path: "data/prorealtime/live_quotes.csv"
   max_quote_age_seconds: 5
 
