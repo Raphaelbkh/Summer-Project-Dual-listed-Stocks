@@ -55,8 +55,8 @@ def test_config_limits_mvp_markets_and_live_sources() -> None:
     assert config["market_universe"]["excluded_countries"] == ["Norway"]
     assert config["market_universe"]["included_currencies"] == ["SEK", "EUR", "DKK"]
     assert config["market_universe"]["excluded_currencies"] == ["NOK"]
-    assert config["market_data"]["live_provider"] == "IG_API"
-    assert config["fx"]["live_provider"] == "IG_API"
+    assert config["market_data"]["live_provider"] == "PROREALTIME_DDE_CSV"
+    assert config["fx"]["live_provider"] == "PROREALTIME_DDE_CSV"
 
 
 def test_mapping_csv_files_exist_with_expected_headers() -> None:

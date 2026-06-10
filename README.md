@@ -23,11 +23,13 @@ Excluded from the MVP:
 
 ## Data Sources
 
-- IG API is now the preferred backend integration for demo/paper launch.
-- ProRealTime DDE/CSV is now the preferred paper-launch quote bridge.
+- ProRealTime DDE/CSV is the preferred live market data bridge.
 - ProRealTime exports live quotes through DDE into external software such as
   Excel or LibreOffice; this project reads those exported rows from
   `data/prorealtime/live_quotes.csv`.
+- IG demo Web API is reserved for demo/paper connectivity and future paper
+  execution experiments.
+- The live IG account does not need Web API credentials for the current MVP.
 - IBKR providers remain in the codebase as an optional fallback.
 - IBKR Nordic Equity L1 can be used as a live equity quote source.
 - IBKR IDEALPRO can be used as a live FX quote source.
@@ -77,10 +79,18 @@ fields into a spreadsheet or local bridge that updates
 The project does not place ProRealTime orders and does not automate ProOrder in
 the MVP.
 
-## IG API Setup
+Test the local ProRealTime quote bridge:
+
+```powershell
+python scripts/test_prorealtime_quotes.py
+python scripts/test_prorealtime_quotes.py --symbol NOKI --exchange "NASDAQ STOCKHOLM" --currency SEK
+python scripts/test_prorealtime_quotes.py --fx-pair EURSEK
+```
+
+## IG Demo API Setup
 
 Create a local `.env` file from `.env.example` and fill in the demo Web API
-credentials. Do not commit `.env`.
+credentials if you want to test IG demo API connectivity. Do not commit `.env`.
 
 ```powershell
 copy .env.example .env
@@ -93,11 +103,6 @@ IG_API_KEY=...
 IG_USERNAME=...
 IG_PASSWORD=...
 IG_ACCOUNT_ID=...   # optional; use when selecting a specific CFD account
-
-IG_LIVE_API_KEY=...
-IG_LIVE_USERNAME=...
-IG_LIVE_PASSWORD=...
-IG_LIVE_ACCOUNT_ID=...   # optional live market-data account
 
 IG_DEMO_API_KEY=...
 IG_DEMO_USERNAME=...
@@ -124,20 +129,14 @@ python scripts/test_ig_prices.py CS.D.EURUSD.CEE.IP
 python scripts/test_ig_prices.py UD.D.TSLA.CASH.IP
 ```
 
-Test live-account market data only:
-
-```powershell
-python scripts/test_ig_live_prices.py UD.D.TSLA.CASH.IP
-```
-
 If equity epics return `unauthorised.access.to.equity.exception`, the API login
-works but that IG account/environment is not entitled to equity price data.
-Make sure the real-time share data subscription is active on the same account
-that the API session uses. The connection script prints visible API accounts.
+works but that IG Web API account/environment is not entitled to equity price
+data. The MVP does not require live IG Web API access because live quotes come
+from ProRealTime DDE/CSV.
 
 The intended next-phase architecture is split by environment:
 
-- IG live API: market data only, observe-only, no orders.
+- ProRealTime/IG live account: market data only through local DDE/CSV export.
 - IG demo API: future paper execution only, disabled in the current codebase.
 - Live order placement is not implemented.
 
@@ -158,7 +157,7 @@ python scripts/test_ibkr_equity_quote.py
 python scripts/test_ig_connection.py
 python scripts/test_ig_market_search.py AAPL EUR/USD
 python scripts/test_ig_prices.py CS.D.EURUSD.CEE.IP
-python scripts/test_ig_live_prices.py UD.D.TSLA.CASH.IP
+python scripts/test_prorealtime_quotes.py
 python scripts/observe_ibkr_spreads.py
 ```
 
