@@ -3,7 +3,10 @@ from src.data.live.ig_api import (
     IGCredentials,
     IGMarketDataProvider,
     ig_base_url,
+    ig_base_url_for_profile,
+    load_ig_credentials_for_profile_from_env,
     load_ig_credentials_from_env,
+    load_ig_session_settings_for_profile_from_env,
     load_ig_session_settings_from_env,
 )
 import requests
@@ -318,6 +321,36 @@ def test_load_ig_session_settings_from_env(monkeypatch) -> None:
     assert settings.account_id == "CFD123"
 
 
+def test_load_ig_credentials_for_named_profile(monkeypatch) -> None:
+    config = {
+        "ig_live_data": {
+            "api_key_env": "IG_LIVE_API_KEY",
+            "username_env": "IG_LIVE_USERNAME",
+            "password_env": "IG_LIVE_PASSWORD",
+        }
+    }
+    monkeypatch.setenv("IG_LIVE_API_KEY", "live-key")
+    monkeypatch.setenv("IG_LIVE_USERNAME", "live-user")
+    monkeypatch.setenv("IG_LIVE_PASSWORD", "live-pass")
+
+    credentials = load_ig_credentials_for_profile_from_env(config, "ig_live_data")
+
+    assert credentials == IGCredentials(
+        api_key="live-key",
+        username="live-user",
+        password="live-pass",
+    )
+
+
+def test_load_ig_session_settings_for_named_profile(monkeypatch) -> None:
+    config = {"ig_live_data": {"account_id_env": "IG_LIVE_ACCOUNT_ID"}}
+    monkeypatch.setenv("IG_LIVE_ACCOUNT_ID", "LIVE123")
+
+    settings = load_ig_session_settings_for_profile_from_env(config, "ig_live_data")
+
+    assert settings.account_id == "LIVE123"
+
+
 def test_ig_base_url_uses_demo_by_default() -> None:
     config = {
         "ig": {
@@ -328,6 +361,21 @@ def test_ig_base_url_uses_demo_by_default() -> None:
     }
 
     assert ig_base_url(config) == "https://demo-api.ig.com/gateway/deal"
+
+
+def test_ig_base_url_for_live_profile() -> None:
+    config = {
+        "ig_live_data": {
+            "environment": "live",
+            "demo_base_url": "https://demo-api.ig.com/gateway/deal",
+            "live_base_url": "https://api.ig.com/gateway/deal",
+        }
+    }
+
+    assert (
+        ig_base_url_for_profile(config, "ig_live_data")
+        == "https://api.ig.com/gateway/deal"
+    )
 
 
 def test_ig_http_error_includes_response_body() -> None:

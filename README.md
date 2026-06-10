@@ -93,6 +93,16 @@ IG_API_KEY=...
 IG_USERNAME=...
 IG_PASSWORD=...
 IG_ACCOUNT_ID=...   # optional; use when selecting a specific CFD account
+
+IG_LIVE_API_KEY=...
+IG_LIVE_USERNAME=...
+IG_LIVE_PASSWORD=...
+IG_LIVE_ACCOUNT_ID=...   # optional live market-data account
+
+IG_DEMO_API_KEY=...
+IG_DEMO_USERNAME=...
+IG_DEMO_PASSWORD=...
+IG_DEMO_ACCOUNT_ID=...   # optional demo/paper account
 ```
 
 Then test demo API login:
@@ -114,10 +124,22 @@ python scripts/test_ig_prices.py CS.D.EURUSD.CEE.IP
 python scripts/test_ig_prices.py UD.D.TSLA.CASH.IP
 ```
 
+Test live-account market data only:
+
+```powershell
+python scripts/test_ig_live_prices.py UD.D.TSLA.CASH.IP
+```
+
 If equity epics return `unauthorised.access.to.equity.exception`, the API login
 works but that IG account/environment is not entitled to equity price data.
 Make sure the real-time share data subscription is active on the same account
 that the API session uses. The connection script prints visible API accounts.
+
+The intended next-phase architecture is split by environment:
+
+- IG live API: market data only, observe-only, no orders.
+- IG demo API: future paper execution only, disabled in the current codebase.
+- Live order placement is not implemented.
 
 ## IBKR Setup
 
@@ -136,6 +158,7 @@ python scripts/test_ibkr_equity_quote.py
 python scripts/test_ig_connection.py
 python scripts/test_ig_market_search.py AAPL EUR/USD
 python scripts/test_ig_prices.py CS.D.EURUSD.CEE.IP
+python scripts/test_ig_live_prices.py UD.D.TSLA.CASH.IP
 python scripts/observe_ibkr_spreads.py
 ```
 

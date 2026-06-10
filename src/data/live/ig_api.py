@@ -273,6 +273,15 @@ def _raise_for_ig_error(response: requests.Response) -> None:
 def load_ig_credentials_from_env(config_dict: dict) -> IGCredentials:
     """Load IG credentials from environment variables named in config."""
     ig_config = config_dict["ig"]
+    return load_ig_credentials_for_profile_from_env(config_dict, "ig")
+
+
+def load_ig_credentials_for_profile_from_env(
+    config_dict: dict,
+    profile_name: str,
+) -> IGCredentials:
+    """Load IG credentials from environment variables named in a config profile."""
+    ig_config = config_dict[profile_name]
     api_key = os.getenv(ig_config["api_key_env"], "")
     username = os.getenv(ig_config["username_env"], "")
     password = os.getenv(ig_config["password_env"], "")
@@ -292,7 +301,15 @@ def load_ig_credentials_from_env(config_dict: dict) -> IGCredentials:
 
 def load_ig_session_settings_from_env(config_dict: dict) -> IGSessionSettings:
     """Load optional IG session settings from environment variables."""
-    ig_config = config_dict["ig"]
+    return load_ig_session_settings_for_profile_from_env(config_dict, "ig")
+
+
+def load_ig_session_settings_for_profile_from_env(
+    config_dict: dict,
+    profile_name: str,
+) -> IGSessionSettings:
+    """Load optional IG session settings from a config profile."""
+    ig_config = config_dict[profile_name]
     account_id_env = ig_config.get("account_id_env", "IG_ACCOUNT_ID")
     account_id = os.getenv(account_id_env, "").strip() or None
     return IGSessionSettings(account_id=account_id)
@@ -300,7 +317,12 @@ def load_ig_session_settings_from_env(config_dict: dict) -> IGSessionSettings:
 
 def ig_base_url(config_dict: dict) -> str:
     """Resolve the configured IG REST base URL."""
-    ig_config = config_dict["ig"]
+    return ig_base_url_for_profile(config_dict, "ig")
+
+
+def ig_base_url_for_profile(config_dict: dict, profile_name: str) -> str:
+    """Resolve the configured IG REST base URL for a profile."""
+    ig_config = config_dict[profile_name]
     environment = ig_config.get("environment", "demo")
     if environment == "demo":
         return ig_config["demo_base_url"]
