@@ -4,6 +4,7 @@ from src.data.live.ig_api import (
     IGMarketDataProvider,
     ig_base_url,
     load_ig_credentials_from_env,
+    load_ig_session_settings_from_env,
 )
 import requests
 import pytest
@@ -26,6 +27,7 @@ class FakeResponse:
 class FakeSession:
     def __init__(self) -> None:
         self.posts = []
+        self.puts = []
         self.gets = []
 
     def post(self, url, headers, json, timeout):
@@ -35,6 +37,15 @@ class FakeSession:
         return FakeResponse(
             {"currentAccountId": "ABC123"},
             headers={"CST": "cst-token", "X-SECURITY-TOKEN": "security-token"},
+        )
+
+    def put(self, url, headers, json, timeout):
+        self.puts.append(
+            {"url": url, "headers": headers, "json": json, "timeout": timeout}
+        )
+        return FakeResponse(
+            {"currentAccountId": json["accountId"]},
+            headers={"CST": "new-cst-token", "X-SECURITY-TOKEN": "new-security-token"},
         )
 
     def get(self, url, headers, timeout, params=None):
@@ -70,6 +81,21 @@ class FakeSession:
                         "offer": 308.5,
                         "lastTraded": 308.0,
                     },
+                }
+            )
+        if "/prices/" in url:
+            return FakeResponse(
+                {
+                    "prices": [
+                        {
+                            "snapshotTimeUTC": "2026/06/10 18:00:00",
+                            "closePrice": {
+                                "bid": 307.5,
+                                "ask": 308.5,
+                                "last": 308.0,
+                            },
+                        }
+                    ]
                 }
             )
         return FakeResponse({"accounts": [{"accountId": "ABC123"}]})
@@ -108,6 +134,24 @@ def test_get_accounts_uses_authenticated_headers() -> None:
     assert session.gets[0]["headers"]["X-SECURITY-TOKEN"] == "security-token"
 
 
+def test_switch_account_updates_session_tokens() -> None:
+    session = FakeSession()
+    client = IGAPIClient(
+        "https://demo-api.ig.com/gateway/deal",
+        IGCredentials("key", "user", "pass"),
+        session=session,
+    )
+    client.login()
+
+    response = client.switch_account("CFD123")
+
+    assert response["currentAccountId"] == "CFD123"
+    assert client.cst == "new-cst-token"
+    assert client.security_token == "new-security-token"
+    assert session.puts[0]["json"] == {"accountId": "CFD123", "defaultAccount": False}
+    assert session.puts[0]["headers"]["Version"] == "1"
+
+
 def test_search_markets_uses_ig_market_search_endpoint() -> None:
     session = FakeSession()
     client = IGAPIClient(
@@ -142,6 +186,23 @@ def test_get_market_details_uses_epic_endpoint() -> None:
     assert session.gets[-1]["headers"]["Version"] == "3"
 
 
+def test_get_prices_uses_ig_prices_endpoint() -> None:
+    session = FakeSession()
+    client = IGAPIClient(
+        "https://demo-api.ig.com/gateway/deal",
+        IGCredentials("key", "user", "pass"),
+        session=session,
+    )
+    client.login()
+
+    prices = client.get_prices("CS.D.AAPL.CFD.IP", resolution="MINUTE", num_points=1)
+
+    assert prices["prices"][0]["closePrice"]["bid"] == 307.5
+    assert session.gets[-1]["url"].endswith("/prices/CS.D.AAPL.CFD.IP")
+    assert session.gets[-1]["params"] == {"resolution": "MINUTE", "max": 1}
+    assert session.gets[-1]["headers"]["Version"] == "3"
+
+
 def test_ig_market_data_provider_maps_equity_quote() -> None:
     session = FakeSession()
     client = IGAPIClient(
@@ -167,6 +228,32 @@ def test_ig_market_data_provider_maps_equity_quote() -> None:
     assert quote.is_valid
 
 
+def test_ig_market_data_provider_maps_equity_quote_from_prices() -> None:
+    session = FakeSession()
+    client = IGAPIClient(
+        "https://demo-api.ig.com/gateway/deal",
+        IGCredentials("key", "user", "pass"),
+        session=session,
+    )
+    client.login()
+    provider = IGMarketDataProvider(client)
+
+    quote = provider.get_equity_quote_from_prices(
+        "CS.D.AAPL.CFD.IP",
+        symbol="AAPL",
+        exchange="IG",
+        currency="USD",
+    )
+
+    assert quote.symbol == "AAPL"
+    assert quote.currency == "USD"
+    assert quote.bid == 307.5
+    assert quote.ask == 308.5
+    assert quote.last == 308.0
+    assert quote.source == "IG_API_PRICES"
+    assert quote.is_valid
+
+
 def test_ig_market_data_provider_maps_fx_quote() -> None:
     session = FakeSession()
     client = IGAPIClient(
@@ -187,6 +274,24 @@ def test_ig_market_data_provider_maps_fx_quote() -> None:
     assert quote.source == "IG_API"
 
 
+def test_ig_market_data_provider_maps_fx_quote_from_prices() -> None:
+    session = FakeSession()
+    client = IGAPIClient(
+        "https://demo-api.ig.com/gateway/deal",
+        IGCredentials("key", "user", "pass"),
+        session=session,
+    )
+    client.login()
+    provider = IGMarketDataProvider(client)
+
+    quote = provider.get_fx_quote_from_prices("CS.D.EURSEK.CFD.IP", pair="EURSEK")
+
+    assert quote.pair == "EURSEK"
+    assert quote.bid == 307.5
+    assert quote.ask == 308.5
+    assert quote.source == "IG_API_PRICES"
+
+
 def test_load_ig_credentials_from_env(monkeypatch) -> None:
     config = {
         "ig": {
@@ -202,6 +307,15 @@ def test_load_ig_credentials_from_env(monkeypatch) -> None:
     credentials = load_ig_credentials_from_env(config)
 
     assert credentials == IGCredentials(api_key="key", username="user", password="pass")
+
+
+def test_load_ig_session_settings_from_env(monkeypatch) -> None:
+    config = {"ig": {"account_id_env": "IG_ACCOUNT_ID"}}
+    monkeypatch.setenv("IG_ACCOUNT_ID", "CFD123")
+
+    settings = load_ig_session_settings_from_env(config)
+
+    assert settings.account_id == "CFD123"
 
 
 def test_ig_base_url_uses_demo_by_default() -> None:

@@ -19,6 +19,11 @@ class IGCredentials:
 
 
 @dataclass
+class IGSessionSettings:
+    account_id: str | None = None
+
+
+@dataclass
 class IGMarketSearchResult:
     epic: str
     instrument_name: str
@@ -90,6 +95,22 @@ class IGAPIClient:
         _raise_for_ig_error(response)
         return response.json()
 
+    def switch_account(self, account_id: str, default_account: bool = False) -> dict[str, Any]:
+        """Switch the active IG account for this API session."""
+        response = self.session.put(
+            f"{self.base_url}/session",
+            headers={
+                **self.authenticated_headers(version="1"),
+                "Content-Type": "application/json",
+            },
+            json={"accountId": account_id, "defaultAccount": default_account},
+            timeout=15,
+        )
+        _raise_for_ig_error(response)
+        self.cst = response.headers.get("CST", self.cst)
+        self.security_token = response.headers.get("X-SECURITY-TOKEN", self.security_token)
+        return response.json()
+
     def search_markets(self, search_term: str) -> dict[str, Any]:
         """Search IG markets for a user-supplied term."""
         response = self.session.get(
@@ -106,6 +127,22 @@ class IGAPIClient:
         response = self.session.get(
             f"{self.base_url}/markets/{epic}",
             headers=self.authenticated_headers(version="3"),
+            timeout=15,
+        )
+        _raise_for_ig_error(response)
+        return response.json()
+
+    def get_prices(
+        self,
+        epic: str,
+        resolution: str = "MINUTE",
+        num_points: int = 1,
+    ) -> dict[str, Any]:
+        """Fetch recent IG prices for a known epic."""
+        response = self.session.get(
+            f"{self.base_url}/prices/{epic}",
+            headers=self.authenticated_headers(version="3"),
+            params={"resolution": resolution, "max": num_points},
             timeout=15,
         )
         _raise_for_ig_error(response)
@@ -153,6 +190,32 @@ class IGMarketDataProvider:
             contract_id=None,
         )
 
+    def get_equity_quote_from_prices(
+        self,
+        epic: str,
+        symbol: str,
+        exchange: str,
+        currency: str,
+        resolution: str = "MINUTE",
+    ) -> EquityQuote:
+        """Fetch an equity quote from IG recent prices for a manually selected epic."""
+        prices = self.client.get_prices(epic, resolution=resolution, num_points=1)
+        latest_price = _latest_price(prices)
+        close_price = latest_price.get("closePrice", {})
+        return EquityQuote(
+            symbol=symbol,
+            exchange=exchange,
+            currency=currency,
+            bid=_to_optional_float(close_price.get("bid")),
+            ask=_to_optional_float(close_price.get("ask")),
+            bid_size=None,
+            ask_size=None,
+            last=_to_optional_float(close_price.get("last")),
+            timestamp=_timestamp_from_price(latest_price),
+            source="IG_API_PRICES",
+            contract_id=None,
+        )
+
     def get_fx_quote_from_epic(self, epic: str, pair: str) -> FXQuote:
         """Fetch an FX quote from a manually selected IG epic."""
         details = self.client.get_market_details(epic)
@@ -167,6 +230,28 @@ class IGMarketDataProvider:
             last=_to_optional_float(snapshot.get("lastTraded")),
             timestamp=_timestamp_from_snapshot(snapshot),
             source="IG_API",
+        )
+
+    def get_fx_quote_from_prices(
+        self,
+        epic: str,
+        pair: str,
+        resolution: str = "MINUTE",
+    ) -> FXQuote:
+        """Fetch an FX quote from IG recent prices for a manually selected epic."""
+        prices = self.client.get_prices(epic, resolution=resolution, num_points=1)
+        latest_price = _latest_price(prices)
+        close_price = latest_price.get("closePrice", {})
+        normalized_pair = pair.replace("/", "").upper()
+        return FXQuote(
+            pair=normalized_pair,
+            base_currency=normalized_pair[:3],
+            quote_currency=normalized_pair[3:],
+            bid=_to_optional_float(close_price.get("bid")),
+            ask=_to_optional_float(close_price.get("ask")),
+            last=_to_optional_float(close_price.get("last")),
+            timestamp=_timestamp_from_price(latest_price),
+            source="IG_API_PRICES",
         )
 
 
@@ -203,6 +288,14 @@ def load_ig_credentials_from_env(config_dict: dict) -> IGCredentials:
     if missing:
         raise ValueError("Missing IG environment variables: " + ", ".join(missing))
     return IGCredentials(api_key=api_key, username=username, password=password)
+
+
+def load_ig_session_settings_from_env(config_dict: dict) -> IGSessionSettings:
+    """Load optional IG session settings from environment variables."""
+    ig_config = config_dict["ig"]
+    account_id_env = ig_config.get("account_id_env", "IG_ACCOUNT_ID")
+    account_id = os.getenv(account_id_env, "").strip() or None
+    return IGSessionSettings(account_id=account_id)
 
 
 def ig_base_url(config_dict: dict) -> str:
@@ -244,6 +337,26 @@ def _currency_from_instrument(instrument: dict[str, Any]) -> str | None:
 def _timestamp_from_snapshot(snapshot: dict[str, Any]) -> datetime:
     # IG update timestamps are not consistent across endpoints; use receive time.
     return utc_now()
+
+
+def _timestamp_from_price(price: dict[str, Any]) -> datetime:
+    timestamp = price.get("snapshotTimeUTC") or price.get("snapshotTime")
+    if not isinstance(timestamp, str):
+        return utc_now()
+    for date_format in ("%Y/%m/%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            parsed = datetime.strptime(timestamp, date_format)
+            return parsed.replace(tzinfo=utc_now().tzinfo)
+        except ValueError:
+            continue
+    return utc_now()
+
+
+def _latest_price(prices_payload: dict[str, Any]) -> dict[str, Any]:
+    prices = prices_payload.get("prices", [])
+    if not prices:
+        return {}
+    return prices[-1]
 
 
 def _to_optional_float(value: Any) -> float | None:

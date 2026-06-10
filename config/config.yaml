@@ -20,6 +20,7 @@ ig:
   api_key_env: "IG_API_KEY"
   username_env: "IG_USERNAME"
   password_env: "IG_PASSWORD"
+  account_id_env: "IG_ACCOUNT_ID"
 
 market_universe:
   included_countries: ["Sweden", "Finland", "Denmark"]

@@ -92,6 +92,7 @@ Required values:
 IG_API_KEY=...
 IG_USERNAME=...
 IG_PASSWORD=...
+IG_ACCOUNT_ID=...   # optional; use when selecting a specific CFD account
 ```
 
 Then test demo API login:
@@ -105,6 +106,18 @@ Search IG demo markets and inspect available epics:
 ```powershell
 python scripts/test_ig_market_search.py AAPL EUR/USD
 ```
+
+Test IG's prices endpoint for known epics:
+
+```powershell
+python scripts/test_ig_prices.py CS.D.EURUSD.CEE.IP
+python scripts/test_ig_prices.py UD.D.TSLA.CASH.IP
+```
+
+If equity epics return `unauthorised.access.to.equity.exception`, the API login
+works but that IG account/environment is not entitled to equity price data.
+Make sure the real-time share data subscription is active on the same account
+that the API session uses. The connection script prints visible API accounts.
 
 ## IBKR Setup
 
@@ -122,6 +135,7 @@ python scripts/test_ibkr_fx.py
 python scripts/test_ibkr_equity_quote.py
 python scripts/test_ig_connection.py
 python scripts/test_ig_market_search.py AAPL EUR/USD
+python scripts/test_ig_prices.py CS.D.EURUSD.CEE.IP
 python scripts/observe_ibkr_spreads.py
 ```
 

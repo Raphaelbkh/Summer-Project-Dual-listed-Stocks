@@ -18,6 +18,7 @@ from src.data.live.ig_api import (  # noqa: E402
     IGMarketDataProvider,
     ig_base_url,
     load_ig_credentials_from_env,
+    load_ig_session_settings_from_env,
 )
 
 
@@ -58,10 +59,13 @@ def main() -> None:
     load_dotenv_if_present()
     config_dict = load_config()
     credentials = load_ig_credentials_from_env(config_dict)
+    session_settings = load_ig_session_settings_from_env(config_dict)
     client = IGAPIClient(ig_base_url(config_dict), credentials)
 
     try:
         client.login()
+        if session_settings.account_id:
+            client.switch_account(session_settings.account_id)
     except requests.HTTPError as exc:
         print("connected: False")
         print(f"environment: {config_dict['ig']['environment']}")

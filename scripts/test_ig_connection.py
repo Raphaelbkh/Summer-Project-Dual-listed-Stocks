@@ -16,6 +16,7 @@ from src.data.live.ig_api import (  # noqa: E402
     IGAPIClient,
     ig_base_url,
     load_ig_credentials_from_env,
+    load_ig_session_settings_from_env,
 )
 
 
@@ -43,9 +44,12 @@ def main() -> None:
     load_dotenv_if_present()
     config_dict = load_config()
     credentials = load_ig_credentials_from_env(config_dict)
+    session_settings = load_ig_session_settings_from_env(config_dict)
     client = IGAPIClient(ig_base_url(config_dict), credentials)
     try:
         session = client.login()
+        if session_settings.account_id:
+            session = client.switch_account(session_settings.account_id)
         accounts = client.get_accounts()
     except requests.HTTPError as exc:
         print("connected: False")
@@ -56,6 +60,17 @@ def main() -> None:
     print(f"environment: {config_dict['ig']['environment']}")
     print(f"current_account_id: {session.get('currentAccountId')}")
     print(f"accounts_count: {len(accounts.get('accounts', []))}")
+    for account in accounts.get("accounts", []):
+        print(
+            " | ".join(
+                [
+                    f"account_id={account.get('accountId')}",
+                    f"name={account.get('accountName')}",
+                    f"type={account.get('accountType')}",
+                    f"preferred={account.get('preferred')}",
+                ]
+            )
+        )
     print("connected: True")
 
 
