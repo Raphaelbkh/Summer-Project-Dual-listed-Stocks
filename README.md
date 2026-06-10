@@ -23,6 +23,7 @@ Excluded from the MVP:
 
 ## Data Sources
 
+- IG API is now the preferred backend integration for demo/paper launch.
 - ProRealTime DDE/CSV is now the preferred paper-launch quote bridge.
 - ProRealTime exports live quotes through DDE into external software such as
   Excel or LibreOffice; this project reads those exported rows from
@@ -75,6 +76,29 @@ fields into a spreadsheet or local bridge that updates
 
 The project does not place ProRealTime orders and does not automate ProOrder in
 the MVP.
+
+## IG API Setup
+
+Create a local `.env` file from `.env.example` and fill in the demo Web API
+credentials. Do not commit `.env`.
+
+```powershell
+copy .env.example .env
+```
+
+Required values:
+
+```text
+IG_API_KEY=...
+IG_USERNAME=...
+IG_PASSWORD=...
+```
+
+Then test demo API login:
+
+```powershell
+python scripts/test_ig_connection.py
+```
 
 ## IBKR Setup
 
