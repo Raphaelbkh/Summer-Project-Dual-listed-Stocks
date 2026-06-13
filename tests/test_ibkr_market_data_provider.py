@@ -271,6 +271,11 @@ def test_historical_bars_are_returned_as_dataframe() -> None:
     assert request["barSizeSetting"] == "1 day"
     assert request["whatToShow"] == "TRADES"
     assert request["useRTH"] is True
+    qualified_request = fake_ib.qualified_requests[0]
+    assert qualified_request.symbol == "ABC"
+    assert qualified_request.exchange == "SFB"
+    assert qualified_request.currency == "SEK"
+    assert qualified_request.primaryExchange in (None, "")
 
 
 def test_no_order_methods_are_called() -> None:

@@ -114,6 +114,15 @@ class IBKREquityMarketDataProvider:
     ) -> Any:
         """Build and qualify an IBKR Stock contract for one user-provided symbol."""
         contract = _stock_contract(symbol, exchange, currency, primary_exchange)
+        return self._qualify_contract(contract, symbol, exchange, currency)
+
+    def _qualify_contract(
+        self,
+        contract: Any,
+        symbol: str,
+        exchange: str,
+        currency: str,
+    ) -> Any:
         qualified_contracts = [
             qualified_contract
             for qualified_contract in self.ib.qualifyContracts(contract)
@@ -165,8 +174,9 @@ class IBKREquityMarketDataProvider:
         what_to_show: str = "TRADES",
         use_rth: bool = True,
     ) -> pd.DataFrame:
-        """Fetch historical bars for one qualified IBKR stock contract."""
-        contract = self.qualify_stock_contract(symbol, exchange, currency)
+        """Fetch historical bars using a direct-exchange IBKR stock contract."""
+        historical_contract = _historical_stock_contract(symbol, exchange, currency)
+        contract = self._qualify_contract(historical_contract, symbol, exchange, currency)
         bars = self.ib.reqHistoricalData(
             contract,
             endDateTime="",
@@ -273,6 +283,18 @@ def _stock_contract(
     if primary:
         contract.primaryExchange = primary
     return contract
+
+
+def _historical_stock_contract(symbol: str, exchange: str, currency: str) -> Any:
+    _ensure_event_loop()
+    try:
+        from ib_async import Stock
+    except ModuleNotFoundError:
+        Stock = _SimpleStockContract
+
+    route_exchange, primary_exchange = _split_exchange(exchange)
+    direct_exchange = primary_exchange or route_exchange
+    return Stock(symbol, direct_exchange, currency)
 
 
 def _split_exchange(exchange: str) -> tuple[str, str | None]:
