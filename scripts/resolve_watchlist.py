@@ -30,7 +30,7 @@ from src.data.mappings.listing_master import (  # noqa: E402
 from src.data.mappings.watchlist import load_user_watchlist, normalize_ticker  # noqa: E402
 
 
-CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
+SETTINGS_PATH = PROJECT_ROOT / "config" / "config.yaml"
 
 
 class IBKRWatchlistContractClient:
@@ -40,14 +40,14 @@ class IBKRWatchlistContractClient:
         self.ib = ib_client
 
     def reqContractDetails(self, ticker: str):
-        from ib_insync import Stock
+        from ib_async import Stock
 
         contract = Stock(ticker, "SMART", "")
         return self.ib.reqContractDetails(contract)
 
 
 def load_config() -> dict:
-    with CONFIG_PATH.open("r", encoding="utf-8") as config_file:
+    with SETTINGS_PATH.open("r", encoding="utf-8") as config_file:
         return yaml.safe_load(config_file)
 
 
@@ -99,7 +99,7 @@ def main() -> None:
     tickers = [normalize_ticker(ticker) for ticker in watchlist["ticker"]]
 
     ensure_event_loop()
-    from ib_insync import IB
+    from ib_async import IB
 
     ib = IB()
     all_candidates: list[ResolvedListingCandidate] = []

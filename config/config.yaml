@@ -1,52 +1,19 @@
 ibkr:
+  # Paper mode is the default. IB Gateway paper uses port 4002 by default.
+  # TWS paper uses port 7497 by default.
+  # Live mode must not be used unless explicitly enabled in a future execution path.
+  # Real-time Nordic market data requires active IBKR subscriptions.
   host: "127.0.0.1"
+  mode: "paper"
+  use_gateway: true
   paper_port: 7497
   live_port: 7496
   gateway_paper_port: 4002
   gateway_live_port: 4001
   client_id_market_data: 1
   client_id_fx: 2
-  mode: "paper"
-
-market_data:
-  live_provider: "IG_LIVE_API"
-  prorealtime_quotes_path: "data/prorealtime/live_quotes.csv"
-  max_quote_age_seconds: 5
-
-ig:
-  environment: "demo"
-  demo_base_url: "https://demo-api.ig.com/gateway/deal"
-  live_base_url: "https://api.ig.com/gateway/deal"
-  api_key_env: "IG_API_KEY"
-  username_env: "IG_USERNAME"
-  password_env: "IG_PASSWORD"
-  account_id_env: "IG_ACCOUNT_ID"
-
-ig_live_data:
-  environment: "live"
-  purpose: "market_data_only"
-  observe_only: true
-  demo_base_url: "https://demo-api.ig.com/gateway/deal"
-  live_base_url: "https://api.ig.com/gateway/deal"
-  api_key_env: "IG_LIVE_API_KEY"
-  username_env: "IG_LIVE_USERNAME"
-  password_env: "IG_LIVE_PASSWORD"
-  account_id_env: "IG_LIVE_ACCOUNT_ID"
-  fx_epics:
-    EURSEK: "CS.D.EURSEK.CFD.IP"
-    EURDKK: "CS.D.EURDKK.CFD.IP"
-    DKKSEK: "CS.D.DKKSEK.CFD.IP"
-
-ig_demo_execution:
-  environment: "demo"
-  purpose: "paper_execution_only"
-  enabled: false
-  demo_base_url: "https://demo-api.ig.com/gateway/deal"
-  live_base_url: "https://api.ig.com/gateway/deal"
-  api_key_env: "IG_DEMO_API_KEY"
-  username_env: "IG_DEMO_USERNAME"
-  password_env: "IG_DEMO_PASSWORD"
-  account_id_env: "IG_DEMO_ACCOUNT_ID"
+  client_id_orders: 3
+  account: null
 
 market_universe:
   included_countries: ["Sweden", "Finland", "Denmark"]
@@ -68,7 +35,6 @@ universe_selection:
   require_manual_active_true: true
 
 fx:
-  live_provider: "IG_LIVE_API"
   required_pairs: ["EURSEK", "EURDKK"]
   optional_pairs: ["DKKSEK"]
   max_quote_age_seconds: 5

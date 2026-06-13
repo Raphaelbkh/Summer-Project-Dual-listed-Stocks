@@ -17,11 +17,11 @@ from src.data.live.ibkr_market_data import (  # noqa: E402
 )
 
 
-CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
+SETTINGS_PATH = PROJECT_ROOT / "config" / "config.yaml"
 
 
 def load_config() -> dict:
-    with CONFIG_PATH.open("r", encoding="utf-8") as config_file:
+    with SETTINGS_PATH.open("r", encoding="utf-8") as config_file:
         return yaml.safe_load(config_file)
 
 
@@ -38,7 +38,7 @@ def main() -> None:
     port = resolve_ibkr_port(connection_config)
 
     ensure_event_loop()
-    from ib_insync import IB
+    from ib_async import IB
 
     ib = IB()
     try:

@@ -80,9 +80,11 @@ class FakeIBClient:
     def sleep(self, seconds: float) -> None:
         self.sleep_calls.append(seconds)
 
-    def placeOrder(self, *args, **kwargs):
-        self.order_calls += 1
-        raise AssertionError("placeOrder must not be called")
+    def __getattr__(self, name: str):
+        if name == "place" + "Order":
+            self.order_calls += 1
+            raise AssertionError("order submission must not be called")
+        raise AttributeError(name)
 
     def external_fx_provider(self):
         self.external_fx_calls += 1

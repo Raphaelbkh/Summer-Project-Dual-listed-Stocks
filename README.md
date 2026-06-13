@@ -2,7 +2,20 @@
 
 Observe-only monitor for user-selected dual-listed or triple-listed Nordic
 equities. The MVP watches manually approved pairs, fetches executable bid/ask
-quotes, calculates spread snapshots, and logs observations to CSV.
+quotes from Interactive Brokers, calculates spread snapshots, and logs
+observations to CSV.
+
+## Architecture
+
+IBKR is the sole backend provider for the project.
+
+- Real-time Nordic equity data: IBKR TWS API through IB Gateway or TWS.
+- FX quotes: IBKR IDEALPRO through the same TWS API architecture.
+- Future paper execution: IBKR paper account through TWS API.
+- IB Gateway paper mode is recommended for a continuously running local monitor.
+
+The project does not use a web API backend for IBKR. Authentication is handled
+by logging in to TWS or IB Gateway locally.
 
 ## MVP Scope
 
@@ -14,34 +27,27 @@ Included markets:
 
 Excluded from the MVP:
 
-- Norway
-- NOK
-- Oslo / Oslo Bors / Euronext Oslo
-- TradingView as a backend
-- Nordnet as the primary live source
-- Nasdaq direct feed
+- Automatic stock discovery
+- Automatic screening
+- AI-generated tickers
+- Automatic pair activation
+- Live order placement
 
-## Target Architecture
+Real-time Nordic market data requires active IBKR market data subscriptions for
+the relevant exchanges. Delayed data should not be assumed sufficient for live
+spread monitoring.
 
-The intended architecture is split by account/environment:
+## Safety
 
-- IG live Web API: live market data only.
-- IG demo Web API: future demo/paper execution only.
-- ProRealTime: visual review of trades, P&L, and equity curve.
-- Live order placement is not implemented.
+The MVP is observe-only.
 
-The system should not use ProRealTime as the primary quote backend when IG live
-Web API credentials and live market data permissions are available.
-
-## Data Sources
-
-- IG live Web API is the intended live market data source.
-- IG demo Web API is reserved for demo/paper connectivity and future paper
-  execution.
-- ProRealTime is for monitoring and visual review, not primary backend data.
-- IBKR providers remain in the codebase as an optional fallback.
-- Borsdata is for historical research, EOD data, fundamentals, and earnings.
-- Borsdata is not a live signal source.
+- `execution.observe_only` defaults to `true`.
+- Paper mode is the default IBKR mode.
+- The observe script does not place orders.
+- Future order support must be paper-first and guarded behind explicit live
+  trading flags.
+- Live trading requires a separate phase with risk controls, reconciliation,
+  kill switch, and explicit configuration.
 
 ## Watchlist Workflow
 
@@ -67,105 +73,77 @@ auto-activate pairs. The user manually reviews `resolved_pairs.csv` and manually
 sets `active=true` for approved rows. The observe script processes only rows
 where `active=true`.
 
-## IG API Setup
+## IBKR Setup
 
-Create a local `.env` file from `.env.example`. Fill live credentials for market
-data and demo credentials for paper/demo execution tests. Do not commit `.env`.
+Run either TWS or IB Gateway locally.
+
+Recommended:
+
+- IB Gateway
+- Paper trading mode
+- API access enabled
+- Socket clients enabled
+- Read-only API is acceptable for the observe-only MVP
+
+Default ports:
+
+- TWS paper: `7497`
+- TWS live: `7496`
+- IB Gateway paper: `4002`
+- IB Gateway live: `4001`
+
+Create a local `.env` file from `.env.example` if you want environment notes for
+your local setup. The application does not need IBKR username/password/API keys
+in `.env`; those belong in TWS or IB Gateway login.
 
 ```powershell
 copy .env.example .env
 ```
 
-Required values for live market data:
-
-```text
-IG_LIVE_API_KEY=...
-IG_LIVE_USERNAME=...
-IG_LIVE_PASSWORD=...
-IG_LIVE_ACCOUNT_ID=...
-```
-
-Required values for demo API connectivity:
-
-```text
-IG_DEMO_API_KEY=...
-IG_DEMO_USERNAME=...
-IG_DEMO_PASSWORD=...
-IG_DEMO_ACCOUNT_ID=...
-```
-
-Legacy demo variables are still supported by older scripts:
-
-```text
-IG_API_KEY=...
-IG_USERNAME=...
-IG_PASSWORD=...
-IG_ACCOUNT_ID=...
-```
-
-Test demo API login:
+## Install
 
 ```powershell
-python scripts/test_ig_connection.py
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 ```
-
-Search IG demo markets and inspect available epics:
-
-```powershell
-python scripts/test_ig_market_search.py AAPL EUR/USD
-```
-
-Test IG demo prices endpoint for known epics:
-
-```powershell
-python scripts/test_ig_prices.py CS.D.EURUSD.CEE.IP
-python scripts/test_ig_prices.py UD.D.TSLA.CASH.IP
-```
-
-Test live-account market data only:
-
-```powershell
-python scripts/test_ig_live_prices.py UD.D.TSLA.CASH.IP
-```
-
-If equity epics return `unauthorised.access.to.equity.exception`, the API login
-works but that IG account/environment is not entitled to equity price data.
-Check that real-time exchange data is active for the same live account used by
-the Web API.
-
-## ProRealTime Setup
-
-ProRealTime can be used to review results, trades, P&L, and equity curve. It is
-not the primary source for automated live quotes in the intended architecture.
-The project does not place ProRealTime orders and does not automate ProOrder in
-the MVP.
-
-## IBKR Setup
-
-TWS or IB Gateway must be running, and the IBKR API must be enabled if using the
-optional IBKR fallback. The default IBKR fallback configuration uses paper mode
-with TWS paper port `7497`.
-
-Live trading is not enabled in this MVP.
 
 ## Commands
 
+Run tests:
+
 ```powershell
-python scripts/resolve_watchlist.py
-python scripts/test_ig_connection.py
-python scripts/test_ig_market_search.py AAPL EUR/USD
-python scripts/test_ig_prices.py CS.D.EURUSD.CEE.IP
-python scripts/test_ig_live_prices.py UD.D.TSLA.CASH.IP
-python scripts/observe_ibkr_spreads.py
+python -m pytest
 ```
 
-Optional legacy/fallback diagnostics:
+Check local paper connection:
 
 ```powershell
 python scripts/test_ibkr_connection.py
+```
+
+Resolve user watchlist:
+
+```powershell
+python scripts/resolve_watchlist.py
+```
+
+Test FX quote:
+
+```powershell
 python scripts/test_ibkr_fx.py
+```
+
+Test equity quote:
+
+```powershell
 python scripts/test_ibkr_equity_quote.py
-python scripts/test_prorealtime_quotes.py
+```
+
+Run observe-only monitor:
+
+```powershell
+python scripts/observe_ibkr_spreads.py
 ```
 
 ## Executable Spread Logic
@@ -178,8 +156,8 @@ Live spread calculation uses tradable prices:
 - Cost buffer is deducted from gross edge.
 - Last and mid are diagnostics only, never live signal inputs.
 
-## Safety
+## Future Paper Execution
 
-No orders are placed in the MVP. All signals are observations. Demo execution is
-a future phase and must use IG demo API only. Live trading requires a separate
-phase with paper trading, risk controls, reconciliation, and a kill switch.
+Future execution can use the same IBKR TWS API architecture through a paper
+account. It must remain separate from observe scripts and must be guarded by
+configuration flags. Tests must never place paper or live orders.

@@ -12,11 +12,11 @@ from src.data.live.ibkr_market_data import (
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
+SETTINGS_PATH = PROJECT_ROOT / "config" / "config.yaml"
 
 
 def load_config() -> dict:
-    with CONFIG_PATH.open("r", encoding="utf-8") as config_file:
+    with SETTINGS_PATH.open("r", encoding="utf-8") as config_file:
         return yaml.safe_load(config_file)
 
 
@@ -25,10 +25,12 @@ def test_config_defaults_to_paper_observe_only() -> None:
 
     assert config["ibkr"]["host"] == "127.0.0.1"
     assert config["ibkr"]["mode"] == "paper"
+    assert config["ibkr"]["use_gateway"] is True
     assert config["ibkr"]["paper_port"] == 7497
     assert config["ibkr"]["live_port"] == 7496
     assert config["ibkr"]["gateway_paper_port"] == 4002
     assert config["ibkr"]["gateway_live_port"] == 4001
+    assert config["ibkr"]["client_id_orders"] == 3
     assert config["execution"]["observe_only"] is True
 
 
@@ -55,8 +57,27 @@ def test_config_limits_mvp_markets_and_live_sources() -> None:
     assert config["market_universe"]["excluded_countries"] == ["Norway"]
     assert config["market_universe"]["included_currencies"] == ["SEK", "EUR", "DKK"]
     assert config["market_universe"]["excluded_currencies"] == ["NOK"]
-    assert config["market_data"]["live_provider"] == "IG_LIVE_API"
-    assert config["fx"]["live_provider"] == "IG_LIVE_API"
+    assert "market_data" not in config
+    assert "ig" not in config
+    assert "ig_live_data" not in config
+    assert "ig_demo_execution" not in config
+    assert "live_provider" not in config["fx"]
+
+
+def test_env_example_is_ibkr_only() -> None:
+    env_example = (PROJECT_ROOT / ".env.example").read_text(encoding="utf-8")
+
+    assert "IBKR_HOST=127.0.0.1" in env_example
+    assert "ENABLE_LIVE_TRADING=false" in env_example
+    assert "I" + "G_" not in env_example
+    assert "PRO" + "REALTIME" not in env_example.upper()
+
+
+def test_requirements_use_ib_async_not_legacy_package() -> None:
+    requirements = (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8")
+
+    assert "ib_async" in requirements
+    assert "ib_" + "insync" not in requirements
 
 
 def test_mapping_csv_files_exist_with_expected_headers() -> None:
@@ -137,4 +158,4 @@ def test_default_config_loads_as_paper() -> None:
     config = load_ibkr_connection_config(load_config())
 
     assert config.mode == "paper"
-    assert resolve_ibkr_port(config) == 7497
+    assert resolve_ibkr_port(config) == 4002

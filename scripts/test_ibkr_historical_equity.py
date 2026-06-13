@@ -1,4 +1,4 @@
-"""Manual observe-only IBKR equity quote smoke test for active pairs."""
+"""Manual observe-only IBKR historical equity bars smoke test."""
 
 from pathlib import Path
 import sys
@@ -43,24 +43,31 @@ def load_active_pairs(config_dict: dict) -> pd.DataFrame:
     return get_active_pairs(resolved_pairs)
 
 
-def print_quote(label: str, quote) -> None:
+def print_bars(label: str, symbol: str, exchange: str, currency: str, bars: pd.DataFrame) -> None:
     print(f"leg: {label}")
-    print(f"symbol: {quote.symbol}")
-    print(f"exchange: {quote.exchange}")
-    print(f"currency: {quote.currency}")
-    print(f"bid: {quote.bid}")
-    print(f"ask: {quote.ask}")
-    print(f"bid_size: {quote.bid_size}")
-    print(f"ask_size: {quote.ask_size}")
-    print(f"last: {quote.last}")
-    print(f"timestamp: {quote.timestamp.isoformat()}")
-    print(f"is_valid: {quote.is_valid}")
-    print(f"spread_pct: {quote.spread_pct}")
-    if quote.bid is None or quote.ask is None:
-        print("warning: missing bid/ask")
+    print(f"symbol: {symbol}")
+    print(f"exchange: {exchange}")
+    print(f"currency: {currency}")
+    print(f"bars: {len(bars)}")
+    if bars.empty:
+        print("warning: no historical bars returned")
+        return
+    for _, row in bars.tail(5).iterrows():
+        print(
+            " | ".join(
+                [
+                    f"date={row['date']}",
+                    f"open={row['open']}",
+                    f"high={row['high']}",
+                    f"low={row['low']}",
+                    f"close={row['close']}",
+                    f"volume={row['volume']}",
+                ]
+            )
+        )
 
 
-def print_leg_quote(
+def print_leg_bars(
     provider: IBKREquityMarketDataProvider,
     label: str,
     symbol: str,
@@ -68,7 +75,15 @@ def print_leg_quote(
     currency: str,
 ) -> None:
     try:
-        quote = provider.get_equity_quote(symbol, exchange, currency)
+        bars = provider.get_historical_bars(
+            symbol,
+            exchange,
+            currency,
+            duration_str="1 W",
+            bar_size_setting="1 day",
+            what_to_show="TRADES",
+            use_rth=True,
+        )
     except Exception as exc:
         print(f"leg: {label}")
         print(f"symbol: {symbol}")
@@ -77,7 +92,7 @@ def print_leg_quote(
         print(f"error: {exc}")
         return
 
-    print_quote(label, quote)
+    print_bars(label, symbol, exchange, currency, bars)
 
 
 def main() -> None:
@@ -100,14 +115,14 @@ def main() -> None:
         provider.connect()
         for _, row in active_pairs.iterrows():
             print(f"pair_id: {row['pair_id']}")
-            print_leg_quote(
+            print_leg_bars(
                 provider,
                 "long",
                 row["long_symbol"],
                 row["long_exchange"],
                 row["long_currency"],
             )
-            print_leg_quote(
+            print_leg_bars(
                 provider,
                 "short",
                 row["short_symbol"],

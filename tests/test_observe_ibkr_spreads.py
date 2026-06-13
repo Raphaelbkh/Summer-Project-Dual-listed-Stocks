@@ -10,10 +10,6 @@ from src.utils.time_utils import utc_now
 
 def config_dict() -> dict:
     return {
-        "market_data": {
-            "live_provider": "PROREALTIME_DDE_CSV",
-            "prorealtime_quotes_path": "data/prorealtime/live_quotes.csv",
-        },
         "execution": {
             "observe_only": True,
             "default_cost_buffer_bps": 20,
@@ -33,7 +29,19 @@ def config_dict() -> dict:
             "live_quotes_dir": "data/live_quotes",
             "live_spreads_dir": "data/live_spreads",
         },
-        "ibkr": {"client_id_fx": 2},
+        "ibkr": {
+            "host": "127.0.0.1",
+            "mode": "paper",
+            "use_gateway": True,
+            "paper_port": 7497,
+            "live_port": 7496,
+            "gateway_paper_port": 4002,
+            "gateway_live_port": 4001,
+            "client_id_market_data": 1,
+            "client_id_fx": 2,
+            "client_id_orders": 3,
+            "account": None,
+        },
     }
 
 
@@ -197,36 +205,27 @@ def test_max_iterations_stops(monkeypatch, tmp_path: Path) -> None:
     assert calls == ["called", "called"]
 
 
-def test_build_quote_providers_uses_prorealtime_csv(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr(observer, "PROJECT_ROOT", tmp_path)
+def test_build_quote_providers_uses_only_ibkr(monkeypatch) -> None:
+    class FakeEquityProvider:
+        def __init__(self, host, port, client_id):
+            self.host = host
+            self.port = port
+            self.client_id = client_id
+
+    class FakeFXProvider:
+        def __init__(self, host, port, client_id):
+            self.host = host
+            self.port = port
+            self.client_id = client_id
+
+    monkeypatch.setattr(observer, "IBKREquityMarketDataProvider", FakeEquityProvider)
+    monkeypatch.setattr(observer, "IBKRFXProvider", FakeFXProvider)
 
     equity_provider, fx_provider = observer.build_quote_providers(config_dict())
 
-    assert equity_provider is fx_provider
-    assert equity_provider.quotes_path == tmp_path / "data/prorealtime/live_quotes.csv"
-
-
-def test_build_quote_providers_uses_ig_live_api(monkeypatch) -> None:
-    config = config_dict()
-    config["market_data"]["live_provider"] = "IG_LIVE_API"
-    config["ig_live_data"] = {
-        "environment": "live",
-        "purpose": "market_data_only",
-        "observe_only": True,
-        "demo_base_url": "https://demo-api.ig.com/gateway/deal",
-        "live_base_url": "https://api.ig.com/gateway/deal",
-        "api_key_env": "IG_LIVE_API_KEY",
-        "username_env": "IG_LIVE_USERNAME",
-        "password_env": "IG_LIVE_PASSWORD",
-        "account_id_env": "IG_LIVE_ACCOUNT_ID",
-        "fx_epics": {"EURSEK": "CS.D.EURSEK.CFD.IP"},
-    }
-    monkeypatch.setenv("IG_LIVE_API_KEY", "key")
-    monkeypatch.setenv("IG_LIVE_USERNAME", "user")
-    monkeypatch.setenv("IG_LIVE_PASSWORD", "pass")
-    monkeypatch.setenv("IG_LIVE_ACCOUNT_ID", "LIVE123")
-
-    equity_provider, fx_provider = observer.build_quote_providers(config)
-
-    assert equity_provider is fx_provider
-    assert equity_provider.account_id == "LIVE123"
+    assert equity_provider.host == "127.0.0.1"
+    assert equity_provider.port == 4002
+    assert equity_provider.client_id == 1
+    assert fx_provider.host == "127.0.0.1"
+    assert fx_provider.port == 4002
+    assert fx_provider.client_id == 2

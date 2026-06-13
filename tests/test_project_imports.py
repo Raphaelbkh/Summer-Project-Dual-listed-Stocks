@@ -34,8 +34,6 @@ def test_step_0_placeholder_modules_import() -> None:
         "src.data.live.quote_models",
         "src.data.live.ibkr_market_data",
         "src.data.live.ibkr_contract_resolver",
-        "src.data.live.ig_api",
-        "src.data.live.prorealtime_market_data",
         "src.data.borsdata.borsdata_client",
         "src.data.mappings.watchlist",
         "src.data.mappings.listing_master",

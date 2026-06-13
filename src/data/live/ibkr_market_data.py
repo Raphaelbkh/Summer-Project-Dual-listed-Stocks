@@ -5,6 +5,8 @@ from datetime import datetime
 from typing import Any
 import asyncio
 
+import pandas as pd
+
 from src.data.live.quote_models import EquityQuote
 from src.utils.time_utils import utc_now
 
@@ -22,6 +24,17 @@ class IBKRConnectionConfig:
     client_id_market_data: int
     mode: str
     use_gateway: bool = False
+    client_id_fx: int | None = None
+    client_id_orders: int | None = None
+    account: str | None = None
+
+
+@dataclass
+class _SimpleStockContract:
+    symbol: str
+    exchange: str
+    currency: str
+    primaryExchange: str | None = None
 
 
 def resolve_ibkr_port(config: IBKRConnectionConfig) -> int:
@@ -59,6 +72,9 @@ def load_ibkr_connection_config(config_dict: dict) -> IBKRConnectionConfig:
         client_id_market_data=int(ibkr_config["client_id_market_data"]),
         mode=mode,
         use_gateway=bool(ibkr_config.get("use_gateway", False)),
+        client_id_fx=int(ibkr_config.get("client_id_fx", 2)),
+        client_id_orders=int(ibkr_config.get("client_id_orders", 3)),
+        account=ibkr_config.get("account"),
     )
 
 
@@ -89,10 +105,20 @@ class IBKREquityMarketDataProvider:
         """Return True when the injected IB client reports an active connection."""
         return bool(self.ib.isConnected())
 
-    def qualify_stock_contract(self, symbol: str, exchange: str, currency: str) -> Any:
+    def qualify_stock_contract(
+        self,
+        symbol: str,
+        exchange: str,
+        currency: str,
+        primary_exchange: str | None = None,
+    ) -> Any:
         """Build and qualify an IBKR Stock contract for one user-provided symbol."""
-        contract = _stock_contract(symbol, exchange, currency)
-        qualified_contracts = self.ib.qualifyContracts(contract)
+        contract = _stock_contract(symbol, exchange, currency, primary_exchange)
+        qualified_contracts = [
+            qualified_contract
+            for qualified_contract in self.ib.qualifyContracts(contract)
+            if qualified_contract is not None
+        ]
         if not qualified_contracts:
             raise ValueError(
                 "IBKR contract qualification failed for "
@@ -129,6 +155,29 @@ class IBKREquityMarketDataProvider:
             contract_id=getattr(contract, "conId", None),
         )
 
+    def get_historical_bars(
+        self,
+        symbol: str,
+        exchange: str,
+        currency: str,
+        duration_str: str = "1 W",
+        bar_size_setting: str = "1 day",
+        what_to_show: str = "TRADES",
+        use_rth: bool = True,
+    ) -> pd.DataFrame:
+        """Fetch historical bars for one qualified IBKR stock contract."""
+        contract = self.qualify_stock_contract(symbol, exchange, currency)
+        bars = self.ib.reqHistoricalData(
+            contract,
+            endDateTime="",
+            durationStr=duration_str,
+            barSizeSetting=bar_size_setting,
+            whatToShow=what_to_show,
+            useRTH=use_rth,
+            formatDate=1,
+        )
+        return _bars_to_dataframe(bars)
+
     def _wait_for_bid_ask(self, ticker: Any, timeout_seconds: float = 5.0) -> None:
         """Wait briefly for IBKR snapshot fields to populate."""
         elapsed = 0.0
@@ -162,6 +211,36 @@ def _ticker_timestamp(ticker: Any) -> datetime:
     return utc_now()
 
 
+def _bars_to_dataframe(bars: list[Any]) -> pd.DataFrame:
+    rows = []
+    for bar in bars:
+        rows.append(
+            {
+                "date": getattr(bar, "date", None),
+                "open": _optional_float(getattr(bar, "open", None)),
+                "high": _optional_float(getattr(bar, "high", None)),
+                "low": _optional_float(getattr(bar, "low", None)),
+                "close": _optional_float(getattr(bar, "close", None)),
+                "volume": _optional_float(getattr(bar, "volume", None)),
+                "bar_count": _optional_float(getattr(bar, "barCount", None)),
+                "average": _optional_float(getattr(bar, "average", None)),
+            }
+        )
+    return pd.DataFrame(
+        rows,
+        columns=[
+            "date",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "bar_count",
+            "average",
+        ],
+    )
+
+
 def _ensure_event_loop() -> None:
     try:
         asyncio.get_event_loop()
@@ -171,13 +250,33 @@ def _ensure_event_loop() -> None:
 
 def _ib_client() -> Any:
     _ensure_event_loop()
-    from ib_insync import IB
+    from ib_async import IB
 
     return IB()
 
 
-def _stock_contract(symbol: str, exchange: str, currency: str) -> Any:
+def _stock_contract(
+    symbol: str,
+    exchange: str,
+    currency: str,
+    primary_exchange: str | None = None,
+) -> Any:
     _ensure_event_loop()
-    from ib_insync import Stock
+    try:
+        from ib_async import Stock
+    except ModuleNotFoundError:
+        Stock = _SimpleStockContract
 
-    return Stock(symbol, exchange, currency)
+    resolved_exchange, resolved_primary_exchange = _split_exchange(exchange)
+    contract = Stock(symbol, resolved_exchange, currency)
+    primary = primary_exchange or resolved_primary_exchange
+    if primary:
+        contract.primaryExchange = primary
+    return contract
+
+
+def _split_exchange(exchange: str) -> tuple[str, str | None]:
+    if ":" not in exchange:
+        return exchange, None
+    route_exchange, primary_exchange = exchange.split(":", 1)
+    return route_exchange, primary_exchange or None

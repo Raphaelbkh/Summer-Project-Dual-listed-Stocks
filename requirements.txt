@@ -1,6 +1,5 @@
-ib_insync
+ib_async
 numpy
 pandas
 pyyaml
 pytest
-requests

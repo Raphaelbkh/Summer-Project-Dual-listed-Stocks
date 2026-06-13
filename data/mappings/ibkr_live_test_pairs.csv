@@ -1,1 +1,4 @@
 pair_id,source_ticker,company_name,long_symbol,long_exchange,long_currency,short_symbol,short_exchange,short_currency,fx_pair,conversion_ratio,active,resolved_status,resolution_source,rejection_reason,notes
+test_nokia_fi_se,NOKIA,Nokia,NOKIA,SMART:HEX,EUR,NOKIASEK,SMART:SFB,SEK,EURSEK,1.0,true,pending_user_review,manual,,manual IBKR quote test
+test_stora_enso_fi_se,STERV,Stora Enso,STERV,SMART:HEX,EUR,STER,SMART:SFB,SEK,EURSEK,1.0,true,pending_user_review,manual,,manual IBKR historical/backtest test
+test_sampo_fi_se,SAMPO,Sampo,SAMPO,SMART:HEX,EUR,SAMPOSEK,SMART:SFB,SEK,EURSEK,1.0,true,pending_user_review,manual,,manual IBKR historical/backtest test

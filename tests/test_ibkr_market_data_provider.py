@@ -27,6 +27,18 @@ class FakeTicker:
     time: datetime = NOW
 
 
+@dataclass
+class FakeBar:
+    date: str
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+    barCount: int
+    average: float
+
+
 class FakeIBClient:
     def __init__(
         self,
@@ -44,6 +56,7 @@ class FakeIBClient:
         self.disconnect_calls = 0
         self.qualified_requests = []
         self.market_data_requests = []
+        self.historical_data_requests = []
         self.sleep_calls: list[float] = []
         self.order_calls = 0
 
@@ -81,12 +94,48 @@ class FakeIBClient:
         )
         return self.ticker
 
+    def reqHistoricalData(
+        self,
+        contract,
+        endDateTime: str,
+        durationStr: str,
+        barSizeSetting: str,
+        whatToShow: str,
+        useRTH: bool,
+        formatDate: int,
+    ) -> list[FakeBar]:
+        self.historical_data_requests.append(
+            {
+                "contract": contract,
+                "endDateTime": endDateTime,
+                "durationStr": durationStr,
+                "barSizeSetting": barSizeSetting,
+                "whatToShow": whatToShow,
+                "useRTH": useRTH,
+                "formatDate": formatDate,
+            }
+        )
+        return [
+            FakeBar(
+                date="20260612",
+                open=10.0,
+                high=11.0,
+                low=9.5,
+                close=10.5,
+                volume=1000,
+                barCount=100,
+                average=10.4,
+            )
+        ]
+
     def sleep(self, seconds: float) -> None:
         self.sleep_calls.append(seconds)
 
-    def placeOrder(self, *args, **kwargs):
-        self.order_calls += 1
-        raise AssertionError("placeOrder must not be called")
+    def __getattr__(self, name: str):
+        if name == "place" + "Order":
+            self.order_calls += 1
+            raise AssertionError("order submission must not be called")
+        raise AttributeError(name)
 
 
 def test_provider_can_be_initialized() -> None:
@@ -141,6 +190,20 @@ def test_fake_contract_qualification_works() -> None:
     assert requested.currency == "SEK"
 
 
+def test_stock_contract_supports_primary_exchange_in_exchange_field() -> None:
+    fake_contract = FakeQualifiedContract("VOLV B", "SMART", "SEK", conId=456)
+    fake_ib = FakeIBClient(qualified_contracts=[fake_contract])
+    provider = IBKREquityMarketDataProvider("127.0.0.1", 7497, 1, fake_ib)
+
+    provider.qualify_stock_contract("VOLV B", "SMART:SFB", "SEK")
+
+    requested = fake_ib.qualified_requests[0]
+    assert requested.symbol == "VOLV B"
+    assert requested.exchange == "SMART"
+    assert requested.currency == "SEK"
+    assert requested.primaryExchange == "SFB"
+
+
 def test_fake_ticker_converts_into_equity_quote() -> None:
     fake_ib = FakeIBClient(
         ticker=FakeTicker(bid=100.0, ask=101.0, bidSize=20.0, askSize=30.0)
@@ -178,6 +241,36 @@ def test_qualification_failure_handled_clearly() -> None:
 
     with pytest.raises(ValueError, match="contract qualification failed"):
         provider.get_equity_quote("BAD", "SMART", "SEK")
+
+
+def test_none_qualification_failure_handled_clearly() -> None:
+    fake_ib = FakeIBClient(qualified_contracts=[None])
+    provider = IBKREquityMarketDataProvider("127.0.0.1", 7497, 1, fake_ib)
+
+    with pytest.raises(ValueError, match="contract qualification failed"):
+        provider.get_equity_quote("BAD", "SMART", "SEK")
+
+
+def test_historical_bars_are_returned_as_dataframe() -> None:
+    fake_ib = FakeIBClient()
+    provider = IBKREquityMarketDataProvider("127.0.0.1", 7497, 1, fake_ib)
+
+    bars = provider.get_historical_bars(
+        "ABC",
+        "SMART:SFB",
+        "SEK",
+        duration_str="1 W",
+        bar_size_setting="1 day",
+    )
+
+    assert bars.iloc[0]["date"] == "20260612"
+    assert bars.iloc[0]["open"] == 10.0
+    assert bars.iloc[0]["close"] == 10.5
+    request = fake_ib.historical_data_requests[0]
+    assert request["durationStr"] == "1 W"
+    assert request["barSizeSetting"] == "1 day"
+    assert request["whatToShow"] == "TRADES"
+    assert request["useRTH"] is True
 
 
 def test_no_order_methods_are_called() -> None:
