@@ -1,0 +1,4 @@
+pair_id,long_symbol,long_exchange,long_currency,long_csv_file,long_csv_file_30m,short_symbol,short_exchange,short_currency,short_csv_file,short_csv_file_30m,fx_pair,fx_csv_file,fx_csv_file_30m,active,backtest_start_override
+tieto_fi_se,TIETO,HEX,EUR,OMXHEX_DLY_TIETO_60.csv,OMXHEX_DLY_TIETO_30m.csv,TIETOS,SFB,SEK,OMXSTO_DLY_TIETOS_60.csv,OMXSTO_DLY_TIETOS_30m.csv,EURSEK,FX_EURSEK_1H_2008_2026.csv,FX_EURSEK_30m.csv,true,
+stora_enso_fi_se,STERV,HEX,EUR,OMXHEX_DLY_STERV_60.csv,,STE_R,SFB,SEK,OMXSTO_DLY_STE_R_60.csv,,EURSEK,FX_EURSEK_1H_2008_2026.csv,,true,
+nokia_fi_se,NOKIA,HEX,EUR,OMXHEX_DLY_NOKIA_60.csv,,NOKIASEK,SFB,SEK,OMXSTO_DLY_NOKIA_SEK_60.csv,,EURSEK,FX_EURSEK_1H_2008_2026.csv,,true,2015-08-10

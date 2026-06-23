@@ -46,10 +46,88 @@ execution:
   reject_if_missing_bid_ask: true
   reject_if_fx_stale: true
   reject_if_equity_quote_stale: true
+  active_strategy_profile: "tieto_30m_paper_start"
+
+strategy_profiles:
+  tieto_30m_research_all_hours:
+    purpose: "offline_research_baseline"
+    pair_id: "tieto_fi_se"
+    timeframe: "30m"
+    lookback_bars: 400
+    entry_zscore: 2.0
+    exit_zscore: 1.0
+    min_expected_edge_bps: 65
+    capital_fraction_per_trade: 0.25
+    exclude_entry_hours_utc: []
+  tieto_30m_paper_start:
+    purpose: "paper_start_baseline"
+    pair_id: "tieto_fi_se"
+    timeframe: "30m"
+    lookback_bars: 400
+    entry_zscore: 2.0
+    exit_zscore: 1.0
+    min_expected_edge_bps: 65
+    capital_fraction_per_trade: 0.25
+    exclude_entry_hours_utc: [15, 16]
+
+paper_readiness:
+  dry_run: true
+  profile_name: "tieto_30m_paper_start"
+  contracts:
+    finland:
+      symbol: "TIETO"
+      exchange: "SMART:HEX"
+      currency: "EUR"
+    sweden:
+      symbol: "TIETOS"
+      exchange: "SMART:SFB"
+      currency: "SEK"
+    fx_pair: "EURSEK"
+  snapshots_dir: "data/paper/snapshots"
+  signals_dir: "data/paper/signals"
+  reports_dir: "data/paper/reports"
 
 logging:
   live_quotes_dir: "data/live_quotes"
   live_spreads_dir: "data/live_spreads"
+  excluded_entry_signals_dir: "data/live_spreads"
 
 polling:
   interval_seconds: 5
+
+historical_data:
+  provider: "TRADINGVIEW_CSV"
+  base_path: "data/historical/tradingview"
+  timeframe: "60m"
+  timestamp_timezone: "Europe/Stockholm"
+  price_column: "close"
+  allow_missing_bars: false
+  forward_fill_fx: true
+  forward_fill_equities: false
+
+backtest:
+  initial_capital_base_ccy: 1000000
+  base_currency: "SEK"
+  train_start: "2000-01-01"
+  train_end: "2008-12-31"
+  test_start: "2009-01-01"
+  test_end: "2009-12-31"
+  lookback_bars: 100
+  entry_zscore: 2.0
+  exit_zscore: 0.5
+  max_holding_bars: 100
+  commission_bps_per_leg: 5
+  estimated_half_spread_bps_per_leg: 5
+  slippage_bps_per_leg: 5
+  capital_fraction_per_trade: 1.0
+  invert_signals: false
+  min_expected_edge_bps: 0
+  min_deviation_bps: 0
+  min_expected_reversion_bps: 0
+  allow_short: true
+  max_open_positions: null
+  max_capital_deployed_pct: null
+  max_pair_weight: null
+  only_trade_pairs_that_pass_robustness_filter: false
+
+pair_parameters: {}

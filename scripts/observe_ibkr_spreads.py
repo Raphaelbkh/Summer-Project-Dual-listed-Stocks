@@ -21,6 +21,13 @@ from src.data.live.ibkr_market_data import (  # noqa: E402
 from src.data.live.quote_models import FXQuote, SpreadSnapshot  # noqa: E402
 from src.data.mappings.listing_master import get_active_pairs, validate_resolved_pairs  # noqa: E402
 from src.fx.ibkr_fx import IBKRFXProvider  # noqa: E402
+from src.execution.entry_policy import (  # noqa: E402
+    EXCLUDED_ENTRY_HOUR_REASON,
+    build_excluded_entry_signal,
+    execution_action_allowed,
+    log_excluded_entry_signal,
+    resolve_strategy_profile,
+)
 from src.logging.csv_logger import (  # noqa: E402
     log_equity_quote,
     log_fx_quote,
@@ -76,6 +83,13 @@ def _float_from_row(value: object, default: float) -> float:
         return default
 
 
+def _optional_float(value: object) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def observe_pair(
     row: pd.Series,
     equity_provider: IBKREquityMarketDataProvider,
@@ -86,6 +100,7 @@ def observe_pair(
     equity_logger: Callable = log_equity_quote,
     fx_logger: Callable = log_fx_quote,
     spread_logger: Callable = log_spread_snapshot,
+    excluded_signal_logger: Callable = log_excluded_entry_signal,
 ) -> SpreadSnapshot:
     long_quote = equity_provider.get_equity_quote(
         row["long_symbol"],
@@ -120,9 +135,83 @@ def observe_pair(
         max_equity_quote_age_seconds=float(fx_config["max_quote_age_seconds"]),
         max_fx_quote_age_seconds=float(fx_config["max_quote_age_seconds"]),
     )
+    apply_entry_hour_gate(
+        snapshot,
+        row,
+        long_quote,
+        short_quote,
+        fx_quote,
+        config_dict,
+        spread_output_dir,
+        excluded_signal_logger,
+    )
     spread_logger(snapshot, spread_output_dir)
     print_status(snapshot)
     return snapshot
+
+
+def apply_entry_hour_gate(
+    snapshot: SpreadSnapshot,
+    row: pd.Series | dict,
+    long_quote,
+    short_quote,
+    fx_quote: FXQuote | None,
+    config_dict: dict,
+    output_dir: Path,
+    excluded_signal_logger: Callable = log_excluded_entry_signal,
+) -> bool:
+    """Return whether a new entry remains eligible after the paper-start gate."""
+    profile = resolve_strategy_profile(config_dict, snapshot.pair_id)
+    excluded_hours = profile.get("exclude_entry_hours_utc", [])
+    if not snapshot.signal or execution_action_allowed(
+        "ENTRY",
+        snapshot.timestamp,
+        excluded_hours,
+    ):
+        return bool(snapshot.signal)
+
+    row_dict = dict(row)
+    sweden_quote, finland_quote = _country_quotes(long_quote, short_quote)
+    observed_signal = build_excluded_entry_signal(
+        timestamp=snapshot.timestamp,
+        pair_id=snapshot.pair_id,
+        direction=_signal_direction(row_dict),
+        zscore=_optional_float(row_dict.get("zscore")),
+        spread_pct=snapshot.gross_edge,
+        expected_edge_bps=(
+            None if snapshot.net_edge is None else snapshot.net_edge * 10000
+        ),
+        sweden_quote=sweden_quote,
+        finland_quote=finland_quote,
+        eursek_quote=fx_quote,
+    )
+    excluded_signal_logger(observed_signal, output_dir)
+    snapshot.signal = False
+    snapshot.rejection_reason = EXCLUDED_ENTRY_HOUR_REASON
+    return False
+
+
+def _country_quotes(long_quote, short_quote):
+    quotes = [long_quote, short_quote]
+    sweden_quote = next(
+        (quote for quote in quotes if quote.currency.upper() == "SEK"),
+        None,
+    )
+    finland_quote = next(
+        (quote for quote in quotes if quote.currency.upper() == "EUR"),
+        None,
+    )
+    return sweden_quote, finland_quote
+
+
+def _signal_direction(row: dict) -> str:
+    long_currency = str(row.get("long_currency", "")).upper()
+    short_currency = str(row.get("short_currency", "")).upper()
+    if long_currency == "EUR" and short_currency == "SEK":
+        return "SHORT_SWEDEN_LONG_FINLAND"
+    if long_currency == "SEK" and short_currency == "EUR":
+        return "LONG_SWEDEN_SHORT_FINLAND"
+    return "LONG_LEG_BUY_SHORT_LEG_SELL"
 
 
 def print_status(snapshot: SpreadSnapshot) -> None:
@@ -143,6 +232,7 @@ def run_observer_once(
     equity_logger: Callable = log_equity_quote,
     fx_logger: Callable = log_fx_quote,
     spread_logger: Callable = log_spread_snapshot,
+    excluded_signal_logger: Callable = log_excluded_entry_signal,
 ) -> list[SpreadSnapshot]:
     snapshots: list[SpreadSnapshot] = []
     for _, row in active_pairs.iterrows():
@@ -157,6 +247,7 @@ def run_observer_once(
                 equity_logger=equity_logger,
                 fx_logger=fx_logger,
                 spread_logger=spread_logger,
+                excluded_signal_logger=excluded_signal_logger,
             )
             snapshots.append(snapshot)
         except Exception as exc:

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 import asyncio
+import os
 
 import pandas as pd
 
@@ -27,6 +28,7 @@ class IBKRConnectionConfig:
     client_id_fx: int | None = None
     client_id_orders: int | None = None
     account: str | None = None
+    port_override: int | None = None
 
 
 @dataclass
@@ -42,6 +44,9 @@ def resolve_ibkr_port(config: IBKRConnectionConfig) -> int:
     mode = config.mode.lower()
     if mode not in SUPPORTED_MODES:
         raise ValueError(f"Unsupported IBKR mode: {config.mode}")
+
+    if config.port_override is not None:
+        return config.port_override
 
     if config.use_gateway:
         return config.gateway_paper_port if mode == "paper" else config.gateway_live_port
@@ -59,23 +64,82 @@ def load_ibkr_connection_config(config_dict: dict) -> IBKRConnectionConfig:
     """Load IBKR connection settings from the project config dictionary."""
     validate_observe_only_config(config_dict)
     ibkr_config = config_dict["ibkr"]
-    mode = ibkr_config.get("mode", "paper")
+    mode = _env_str("IBKR_MODE", ibkr_config.get("mode", "paper")).lower()
     if mode not in SUPPORTED_MODES:
         raise ValueError(f"Unsupported IBKR mode: {mode}")
 
     return IBKRConnectionConfig(
-        host=ibkr_config["host"],
+        host=_env_str("IBKR_HOST", ibkr_config["host"]),
         paper_port=int(ibkr_config["paper_port"]),
         live_port=int(ibkr_config["live_port"]),
         gateway_paper_port=int(ibkr_config["gateway_paper_port"]),
         gateway_live_port=int(ibkr_config["gateway_live_port"]),
-        client_id_market_data=int(ibkr_config["client_id_market_data"]),
+        client_id_market_data=_env_int(
+            "IBKR_CLIENT_ID_MARKET_DATA",
+            ibkr_config["client_id_market_data"],
+        ),
         mode=mode,
-        use_gateway=bool(ibkr_config.get("use_gateway", False)),
-        client_id_fx=int(ibkr_config.get("client_id_fx", 2)),
-        client_id_orders=int(ibkr_config.get("client_id_orders", 3)),
+        use_gateway=_env_bool("IBKR_USE_GATEWAY", ibkr_config.get("use_gateway", False)),
+        client_id_fx=_env_int("IBKR_CLIENT_ID_FX", ibkr_config.get("client_id_fx", 2)),
+        client_id_orders=_env_int(
+            "IBKR_CLIENT_ID_ORDERS",
+            ibkr_config.get("client_id_orders", 3),
+        ),
         account=ibkr_config.get("account"),
+        port_override=_env_optional_int("IBKR_PORT"),
     )
+
+
+def live_trading_enabled() -> bool:
+    """Return True only when live trading is explicitly enabled by env."""
+    return _parse_bool(os.environ.get("ENABLE_LIVE_TRADING", "false"))
+
+
+def assert_no_live_trading_enabled() -> None:
+    """Abort data-only scripts if the live trading flag is enabled."""
+    if live_trading_enabled():
+        raise RuntimeError("ENABLE_LIVE_TRADING must remain false for data-only diagnostics.")
+
+
+def assert_order_allowed(config: IBKRConnectionConfig) -> None:
+    """Guard future order code from accidental live trading."""
+    if config.mode == "live" and not live_trading_enabled():
+        raise RuntimeError("Live order placement is blocked unless ENABLE_LIVE_TRADING=true.")
+
+
+def _env_str(name: str, default: Any) -> str:
+    value = os.environ.get(name)
+    return str(default) if value is None or value == "" else value
+
+
+def _env_int(name: str, default: Any) -> int:
+    value = os.environ.get(name)
+    return int(default) if value is None or value == "" else int(value)
+
+
+def _env_optional_int(name: str) -> int | None:
+    value = os.environ.get(name)
+    if value is None or value == "":
+        return None
+    return int(value)
+
+
+def _env_bool(name: str, default: Any) -> bool:
+    value = os.environ.get(name)
+    if value is None or value == "":
+        return _parse_bool(default)
+    return _parse_bool(value)
+
+
+def _parse_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "y", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "n", "off"}:
+        return False
+    raise ValueError(f"Unsupported boolean value: {value}")
 
 
 class IBKREquityMarketDataProvider:

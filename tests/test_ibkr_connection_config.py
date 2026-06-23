@@ -5,10 +5,13 @@ import yaml
 
 from src.data.live.ibkr_market_data import (
     IBKRConnectionConfig,
+    assert_no_live_trading_enabled,
+    assert_order_allowed,
     load_ibkr_connection_config,
     resolve_ibkr_port,
     validate_observe_only_config,
 )
+from scripts.test_ibkr_live_data_diagnostic import validate_live_data_diagnostic_config
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -68,6 +71,8 @@ def test_env_example_is_ibkr_only() -> None:
     env_example = (PROJECT_ROOT / ".env.example").read_text(encoding="utf-8")
 
     assert "IBKR_HOST=127.0.0.1" in env_example
+    assert "IBKR_PORT=4002" in env_example
+    assert "# IBKR_PORT=4001" in env_example
     assert "ENABLE_LIVE_TRADING=false" in env_example
     assert "I" + "G_" not in env_example
     assert "PRO" + "REALTIME" not in env_example.upper()
@@ -159,3 +164,75 @@ def test_default_config_loads_as_paper() -> None:
 
     assert config.mode == "paper"
     assert resolve_ibkr_port(config) == 4002
+
+
+def test_explicit_ibkr_port_overrides_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("IBKR_PORT", "4100")
+
+    config = load_ibkr_connection_config(load_config())
+
+    assert resolve_ibkr_port(config) == 4100
+
+
+def test_env_live_gateway_resolves_to_4001(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("IBKR_MODE", "live")
+    monkeypatch.setenv("IBKR_USE_GATEWAY", "true")
+
+    config = load_ibkr_connection_config(load_config())
+
+    assert config.mode == "live"
+    assert config.use_gateway is True
+    assert resolve_ibkr_port(config) == 4001
+
+
+def test_env_overrides_client_ids_and_host(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("IBKR_HOST", "localhost")
+    monkeypatch.setenv("IBKR_CLIENT_ID_MARKET_DATA", "11")
+    monkeypatch.setenv("IBKR_CLIENT_ID_FX", "12")
+    monkeypatch.setenv("IBKR_CLIENT_ID_ORDERS", "13")
+
+    config = load_ibkr_connection_config(load_config())
+
+    assert config.host == "localhost"
+    assert config.client_id_market_data == 11
+    assert config.client_id_fx == 12
+    assert config.client_id_orders == 13
+
+
+def test_live_diagnostic_refuses_unless_mode_is_live() -> None:
+    with pytest.raises(RuntimeError, match="IBKR_MODE=live"):
+        validate_live_data_diagnostic_config(make_connection_config(mode="paper"))
+
+
+def test_live_diagnostic_allows_live_data_with_live_trading_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ENABLE_LIVE_TRADING", "false")
+
+    validate_live_data_diagnostic_config(make_connection_config(mode="live", use_gateway=True))
+
+
+def test_data_only_script_refuses_when_live_trading_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ENABLE_LIVE_TRADING", "true")
+
+    with pytest.raises(RuntimeError, match="ENABLE_LIVE_TRADING"):
+        assert_no_live_trading_enabled()
+
+
+def test_live_order_placement_blocked_unless_live_trading_true(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ENABLE_LIVE_TRADING", "false")
+
+    with pytest.raises(RuntimeError, match="Live order placement is blocked"):
+        assert_order_allowed(make_connection_config(mode="live"))
+
+
+def test_live_order_guard_allows_only_with_explicit_live_trading_true(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ENABLE_LIVE_TRADING", "true")
+
+    assert_order_allowed(make_connection_config(mode="live"))
