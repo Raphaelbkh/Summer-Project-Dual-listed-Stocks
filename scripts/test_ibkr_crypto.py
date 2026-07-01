@@ -2,7 +2,6 @@
 
 from pathlib import Path
 from typing import Any
-import asyncio
 import sys
 
 import yaml
@@ -16,6 +15,7 @@ from src.data.live.ibkr_market_data import (  # noqa: E402
     load_ibkr_connection_config,
     resolve_ibkr_port,
 )
+from src.data.live.ibapi_client import IBAPIClient, crypto_contract  # noqa: E402
 from src.data.live.quote_models import EquityQuote  # noqa: E402
 from src.utils.time_utils import utc_now  # noqa: E402
 
@@ -26,13 +26,6 @@ SETTINGS_PATH = PROJECT_ROOT / "config" / "config.yaml"
 def load_config() -> dict:
     with SETTINGS_PATH.open("r", encoding="utf-8") as config_file:
         return yaml.safe_load(config_file)
-
-
-def ensure_event_loop() -> None:
-    try:
-        asyncio.get_event_loop()
-    except RuntimeError:
-        asyncio.set_event_loop(asyncio.new_event_loop())
 
 
 def optional_float(value: Any) -> float | None:
@@ -53,9 +46,7 @@ def ticker_time(ticker: Any):
 
 
 def print_crypto_quote(ib, symbol: str, exchange: str, currency: str) -> None:
-    from ib_async import Crypto
-
-    contract = Crypto(symbol, exchange, currency)
+    contract = crypto_contract(symbol, exchange, currency)
     qualified_contracts = ib.qualifyContracts(contract)
     if not qualified_contracts:
         print(f"symbol: {symbol}")
@@ -113,10 +104,7 @@ def main() -> None:
     connection_config = load_ibkr_connection_config(config_dict)
     port = resolve_ibkr_port(connection_config)
 
-    ensure_event_loop()
-    from ib_async import IB
-
-    ib = IB()
+    ib = IBAPIClient()
     try:
         ib.connect(
             connection_config.host,

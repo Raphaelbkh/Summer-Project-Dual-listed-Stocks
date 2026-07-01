@@ -3,11 +3,11 @@
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
-import asyncio
 import os
 
 import pandas as pd
 
+from src.data.live.ibapi_client import IBAPIClient, stock_contract
 from src.data.live.quote_models import EquityQuote
 from src.utils.time_utils import utc_now
 
@@ -29,14 +29,6 @@ class IBKRConnectionConfig:
     client_id_orders: int | None = None
     account: str | None = None
     port_override: int | None = None
-
-
-@dataclass
-class _SimpleStockContract:
-    symbol: str
-    exchange: str
-    currency: str
-    primaryExchange: str | None = None
 
 
 def resolve_ibkr_port(config: IBKRConnectionConfig) -> int:
@@ -315,18 +307,8 @@ def _bars_to_dataframe(bars: list[Any]) -> pd.DataFrame:
     )
 
 
-def _ensure_event_loop() -> None:
-    try:
-        asyncio.get_event_loop()
-    except RuntimeError:
-        asyncio.set_event_loop(asyncio.new_event_loop())
-
-
 def _ib_client() -> Any:
-    _ensure_event_loop()
-    from ib_async import IB
-
-    return IB()
+    return IBAPIClient()
 
 
 def _stock_contract(
@@ -335,30 +317,15 @@ def _stock_contract(
     currency: str,
     primary_exchange: str | None = None,
 ) -> Any:
-    _ensure_event_loop()
-    try:
-        from ib_async import Stock
-    except ModuleNotFoundError:
-        Stock = _SimpleStockContract
-
     resolved_exchange, resolved_primary_exchange = _split_exchange(exchange)
-    contract = Stock(symbol, resolved_exchange, currency)
     primary = primary_exchange or resolved_primary_exchange
-    if primary:
-        contract.primaryExchange = primary
-    return contract
+    return stock_contract(symbol, resolved_exchange, currency, primary)
 
 
 def _historical_stock_contract(symbol: str, exchange: str, currency: str) -> Any:
-    _ensure_event_loop()
-    try:
-        from ib_async import Stock
-    except ModuleNotFoundError:
-        Stock = _SimpleStockContract
-
     route_exchange, primary_exchange = _split_exchange(exchange)
     direct_exchange = primary_exchange or route_exchange
-    return Stock(symbol, direct_exchange, currency)
+    return stock_contract(symbol, direct_exchange, currency)
 
 
 def _split_exchange(exchange: str) -> tuple[str, str | None]:

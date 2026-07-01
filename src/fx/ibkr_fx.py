@@ -1,19 +1,11 @@
 """Observe-only IBKR IDEALPRO FX quote provider."""
 
 from datetime import datetime
-from dataclasses import dataclass
 from typing import Any
-import asyncio
 
+from src.data.live.ibapi_client import IBAPIClient, forex_contract
 from src.data.live.quote_models import FXQuote
 from src.utils.time_utils import utc_now
-
-
-@dataclass
-class _SimpleForexContract:
-    symbol: str
-    secType: str = "CASH"
-    exchange: str = "IDEALPRO"
 
 
 class IBKRFXProvider:
@@ -113,25 +105,9 @@ def _ticker_timestamp(ticker: Any) -> datetime:
     return utc_now()
 
 
-def _ensure_event_loop() -> None:
-    try:
-        asyncio.get_event_loop()
-    except RuntimeError:
-        asyncio.set_event_loop(asyncio.new_event_loop())
-
-
 def _ib_client() -> Any:
-    _ensure_event_loop()
-    from ib_async import IB
-
-    return IB()
+    return IBAPIClient()
 
 
 def _forex_contract(pair: str) -> Any:
-    _ensure_event_loop()
-    try:
-        from ib_async import Forex
-    except ModuleNotFoundError:
-        Forex = _SimpleForexContract
-
-    return Forex(pair.upper())
+    return forex_contract(pair)

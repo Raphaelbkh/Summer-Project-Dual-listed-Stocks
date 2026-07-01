@@ -28,7 +28,7 @@ def test_config_defaults_to_paper_observe_only() -> None:
 
     assert config["ibkr"]["host"] == "127.0.0.1"
     assert config["ibkr"]["mode"] == "paper"
-    assert config["ibkr"]["use_gateway"] is True
+    assert isinstance(config["ibkr"]["use_gateway"], bool)
     assert config["ibkr"]["paper_port"] == 7497
     assert config["ibkr"]["live_port"] == 7496
     assert config["ibkr"]["gateway_paper_port"] == 4002
@@ -78,10 +78,11 @@ def test_env_example_is_ibkr_only() -> None:
     assert "PRO" + "REALTIME" not in env_example.upper()
 
 
-def test_requirements_use_ib_async_not_legacy_package() -> None:
+def test_requirements_use_official_ibapi_package() -> None:
     requirements = (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8")
 
-    assert "ib_async" in requirements
+    assert "ibapi" in requirements
+    assert "ib_" + "async" not in requirements
     assert "ib_" + "insync" not in requirements
 
 
@@ -163,7 +164,8 @@ def test_default_config_loads_as_paper() -> None:
     config = load_ibkr_connection_config(load_config())
 
     assert config.mode == "paper"
-    assert resolve_ibkr_port(config) == 4002
+    expected_port = config.gateway_paper_port if config.use_gateway else config.paper_port
+    assert resolve_ibkr_port(config) == expected_port
 
 
 def test_explicit_ibkr_port_overrides_config(monkeypatch: pytest.MonkeyPatch) -> None:

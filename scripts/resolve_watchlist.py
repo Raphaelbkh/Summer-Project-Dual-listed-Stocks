@@ -1,7 +1,6 @@
 """Resolve user-provided watchlist tickers into internal mapping CSV files."""
 
 from pathlib import Path
-import asyncio
 import sys
 
 import pandas as pd
@@ -20,6 +19,7 @@ from src.data.live.ibkr_market_data import (  # noqa: E402
     load_ibkr_connection_config,
     resolve_ibkr_port,
 )
+from src.data.live.ibapi_client import IBAPIClient, stock_contract  # noqa: E402
 from src.data.mappings.listing_master import (  # noqa: E402
     RESOLVED_PAIR_COLUMNS,
     generate_pair_candidates_from_resolved_listings,
@@ -40,22 +40,13 @@ class IBKRWatchlistContractClient:
         self.ib = ib_client
 
     def reqContractDetails(self, ticker: str):
-        from ib_async import Stock
-
-        contract = Stock(ticker, "SMART", "")
+        contract = stock_contract(ticker, "SMART", "")
         return self.ib.reqContractDetails(contract)
 
 
 def load_config() -> dict:
     with SETTINGS_PATH.open("r", encoding="utf-8") as config_file:
         return yaml.safe_load(config_file)
-
-
-def ensure_event_loop() -> None:
-    try:
-        asyncio.get_event_loop()
-    except RuntimeError:
-        asyncio.set_event_loop(asyncio.new_event_loop())
 
 
 def rejected_rows_from_candidates(
@@ -98,10 +89,7 @@ def main() -> None:
     watchlist = load_user_watchlist(watchlist_path)
     tickers = [normalize_ticker(ticker) for ticker in watchlist["ticker"]]
 
-    ensure_event_loop()
-    from ib_async import IB
-
-    ib = IB()
+    ib = IBAPIClient()
     all_candidates: list[ResolvedListingCandidate] = []
     rejected_rows: list[dict[str, str]] = []
 
@@ -110,6 +98,7 @@ def main() -> None:
             connection_config.host,
             port,
             clientId=connection_config.client_id_market_data,
+            readonly=True,
         )
         resolver_client = IBKRWatchlistContractClient(ib)
 

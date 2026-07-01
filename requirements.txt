@@ -1,4 +1,4 @@
-ib_async
+ibapi
 numpy
 pandas
 pyyaml
